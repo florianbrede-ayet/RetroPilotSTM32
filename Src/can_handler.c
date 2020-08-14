@@ -82,6 +82,7 @@ bool can_push(can_ring *q, CAN_STD_Msg *elem) {
   if (!ret) {
     can_overflow_cnt++;
     #ifdef CANMANAGER_DEBUG
+    if (can_overflow_cnt==0)
       logger("can_push failed!\n");
     #endif
   }
@@ -121,6 +122,12 @@ void can_init_all(void) {
     can_clear(can_rx_queues[i]);
     can_clear(can_tx_queues[i]);
   }
+
+  TxHeader.ExtId = 0x01;
+  TxHeader.RTR = CAN_RTR_DATA;
+  TxHeader.IDE = CAN_ID_STD;
+  TxHeader.DLC = 8;
+  TxHeader.TransmitGlobalTime = DISABLE;         
 }
 
 bool can_receive_message(int bus_number, CAN_STD_Msg *msg) {
@@ -131,10 +138,11 @@ bool can_receive_message(int bus_number, CAN_STD_Msg *msg) {
 void can_send_internal() {
     for (int bus_number=0; bus_number<2; bus_number++) {
 
-        while(can_peek(can_tx_queues[bus_number]) && HAL_CAN_GetTxMailboxesFreeLevel(can_handles[bus_number])>0) {
+        while(can_peek(can_tx_queues[bus_number])) {
+          if (HAL_CAN_GetTxMailboxesFreeLevel(can_handles[bus_number])>0) {
             CAN_STD_Msg msg;
             if (can_pop(can_tx_queues[bus_number], &msg)) {
-                TxHeader.StdId=msg.id;                
+                TxHeader.StdId=msg.id;       
                 if (HAL_CAN_AddTxMessage(can_handles[bus_number], &TxHeader, msg.buf, &TxMailbox) != HAL_OK)
                 {
                     can_err_cnt++;
@@ -145,6 +153,7 @@ void can_send_internal() {
                 }
             }
             else break;
+          } else break;
         }
     }
 }
@@ -152,7 +161,14 @@ void can_send_internal() {
 bool can_send_message(int bus_number, uint32_t txId, uint8_t txBuf[8]) {
     CAN_STD_Msg msg;
     msg.id=txId;
-    memcpy(&msg.buf, txBuf, 8*sizeof(uint8_t));
+    msg.buf[0]=txBuf[0];
+    msg.buf[1]=txBuf[1];
+    msg.buf[2]=txBuf[2];
+    msg.buf[3]=txBuf[3];
+    msg.buf[4]=txBuf[4];
+    msg.buf[5]=txBuf[5];
+    msg.buf[6]=txBuf[6];
+    msg.buf[7]=txBuf[7];
 
     bool ret = can_push(can_tx_queues[bus_number], &msg);
     can_send_internal();
