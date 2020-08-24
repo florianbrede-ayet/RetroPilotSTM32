@@ -30,7 +30,7 @@
 
 #define MIN_SERIAL_TX_FREQ 100 // this module normally just answers serial messages from the stepper (sent at 50 hz). this is the minimum frequency we send (stop messages) at if the stepper does not respond
 #define MIN_CALCULATION_FREQ 10 // we want to update the stepper command calculations at 100+ Hz
-#define ANGLE_SYNC_STEP_FREQUENCY 25
+#define ANGLE_SYNC_STEP_FREQUENCY 100
 
 
 #define MIN_TORQUE_THRESHOLD 100.0f    // OP torque commands below this threshold will be ignored (because our eps cannot control torque as fine as the original eps)
@@ -38,7 +38,7 @@
 
 // the currents applied to the motor for dynamic and hold. note: hold requires less current than dynamic
 #define MIN_HOLD_CURRENT 300.0f
-#define MIN_DYNAMIC_CURRENT 500.0f
+#define MIN_DYNAMIC_CURRENT 250.0f
 #define MAX_HOLD_CURRENT 1100.0f
 #define MAX_DYNAMIC_CURRENT 1500.0f
 
@@ -52,10 +52,15 @@
 
 #define STEERING_ANGLE_SOFT_LIMITATION_0KMH 20.0f   // steering wheel angle from which on the dynamic torque will be reduced by 10% per additional degree at 0 km/h
 #define STEERING_ANGLE_SOFT_LIMITATION_100KMH 12.0f // steering wheel angle from which on the dynamic torque will be reduced by 10% per additional degree at 100 km/h
+/* #define STEERING_ANGLE_SOFT_LIMITATION_0KMH 45.0f   // steering wheel angle from which on the dynamic torque will be reduced by 10% per additional degree at 0 km/h
+#define STEERING_ANGLE_SOFT_LIMITATION_100KMH 45.0f // steering wheel angle from which on the dynamic torque will be reduced by 10% per additional degree at 100 km/h
+ */
 
+#define EPS_MAX_ANGLE_ERROR 18.0f                   // the maximum allowed divergence between stepper & angle sensor before the EPS goes into an error state
+#define EPS_GEARING 1700.0f                        // the total gearing between the stepper motor and the steering shaft * microsteps (measured)
+//#define EPS_GEARING 170.0f                        // the total gearing between the stepper motor and the steering shaft * microsteps (measured)
 
-#define EPS_GEARING 220.0f                          // the total gearing between the stepper motor and the steering shaft * microsteps (13.74f*16.0f)
-
+#define STEERING_ANGLE_INVERTED -1.0f               // set to 1.0 or -1.0 (-1.0 if the stepper angle is inverted to the actual steering angle, which should be true for most setups)
 
 
 extern int8_t eps_debug_torque_percent;
@@ -63,6 +68,8 @@ extern bool eps_stepper_available;                  // set to true if the steppe
 
 void eps_debug_torque_left();
 void eps_debug_torque_right();
+void eps_debug_zero_simulated_steering_angle();
+
 void eps_setup();
 void eps_loop();
 

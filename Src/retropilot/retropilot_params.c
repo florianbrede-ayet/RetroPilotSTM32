@@ -10,6 +10,8 @@ RetropilotParams retropilotParams = {
     .ALLOW_BRAKE = false,
     .ALLOW_STEERING = false,
 
+    .OP_ERROR_LKAS = false,
+
     .GAS_CMD_PERCENT = 0,
     .BRAKE_CMD_PERCENT = 0,
     
@@ -42,4 +44,6 @@ RetropilotParams retropilotParams = {
 
     .OP_EPS_UNRECOVERABLE_ERROR = false,    // set to true by the eps if its in an unrecoverable error state (e.g. calibration, encoder)
     .OP_EPS_TEMPORARY_ERROR = false,        // set to true by the eps if there's a temporary issue with the stepper or it's not synchronized correctly yet
+    .OP_EPS_ACTUAL_TORQUE = 0,              // holds the current torque applied by the EPS - this is sent to openpilot in the STEER_TORQUE_SENSOR message
+    .OP_EPS_TOYOTA_STAUS_FLAG = 2,          // holds the current toyota eps compatible status of our stepper eps - sent to op in the EPS_STATUS message
 };

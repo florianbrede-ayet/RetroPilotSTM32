@@ -45,6 +45,8 @@ unsigned long cm_last_update_msg_curr_sec=0;
 uint8_t cm_counter=0;
 
 
+extern uint8_t eps_stepper_status;
+
 unsigned long cm_last_recv=0L;
 
 // we track can message timings for each module individually. if a module is enabled on the same ecu, the timer is just updated with every can send
@@ -107,17 +109,6 @@ void cm_send_fake_toyota_can_messages(bool trigger100Hz, bool trigger50Hz, bool 
     can_send_message(0, 0x224, buf);
     cm_tx_cnt++;
 
-    //0x260 fake STEER_TORQUE_SENSOR  
-    canhelper_reset_buffer(buf);
-    buf[0] = 0x08;
-    buf[1] = 0xff;
-    buf[2] = 0xfb;
-    buf[5] = 0xff;
-    buf[6] = 0xdc;
-    buf[7] = 0x47;
-    can_send_message(0, 0x260, buf);
-    cm_tx_cnt++;
-
     // 0x2c1 msg GAS_PEDAL
     canhelper_reset_buffer(buf);
     buf[0] = (!retropilotParams.gas_pedal_state << 3) & 0x08;
@@ -130,7 +121,7 @@ void cm_send_fake_toyota_can_messages(bool trigger100Hz, bool trigger50Hz, bool 
     buf[2] = 0x01;
     buf[3] = ((retropilotParams.blinker_left << 5) & 0x20) | ((retropilotParams.blinker_right << 4) & 0x10);
     buf[6] = 0x76;
-    canhelper_put_toyota_checksum(buf, 0x614);
+    canhelper_put_toyota_checksum(buf, 0x614, 7);
     can_send_message(0, 0x614, buf);
     cm_tx_cnt++;
     #endif
@@ -147,25 +138,25 @@ void cm_send_standard_toyota_can_messages(bool trigger100Hz, bool trigger50Hz, b
     uint8_t buf[8];    
     // SENDING_CAN_MESSAGES
     #if MODULE_INPUTS
-    //0x1d2 msg PCM_CRUISE
+    //0x1d2 PCM_CRUISE
     canhelper_reset_buffer(buf);
     buf[0] = ((retropilotParams.OP_ON << 5) & 0x20) | ((!retropilotParams.gas_pedal_state << 4) & 0x10);
     buf[6] = (retropilotParams.OP_ON << 7) & 0x80;
-    canhelper_put_toyota_checksum(buf, 0x1d2);
+    canhelper_put_toyota_checksum(buf, 0x1d2, 7);
     can_send_message(0, 0x1d2, buf);
     cm_tx_cnt++;
 
-    //0x1d3 msg PCM_CRUISE_2
+    //0x1d3 PCM_CRUISE_2
     canhelper_reset_buffer(buf);
     buf[1] = ((retropilotParams.OP_ON << 7) & 0x80) | 0x28;
     buf[2] = retropilotParams.ccSetSpeed;
-    canhelper_put_toyota_checksum(buf, 0x1d3);
+    canhelper_put_toyota_checksum(buf, 0x1d3, 7);
     can_send_message(0, 0x1d3, buf);
     cm_tx_cnt++;
     #endif
 
     #if MODULE_VSS
-    //0xaa msg defaults 1a 6f WHEEL_SPEEDS
+    //0xaa WHEEL_SPEEDS
     canhelper_reset_buffer(buf);
     uint16_t wheelspeed = 0x1a6f + (retropilotParams.vssAvgSpeedKMH * 100);
     buf[0] = (wheelspeed >> 8) & 0xFF;
@@ -177,17 +168,59 @@ void cm_send_standard_toyota_can_messages(bool trigger100Hz, bool trigger50Hz, b
     buf[6] = (wheelspeed >> 8) & 0xFF;
     buf[7] = (wheelspeed >> 0) & 0xFF;
     can_send_message(0, 0xaa, buf);
+
+    
     cm_tx_cnt++;
     #endif
 
-    #if MODULE_EPS
-    //0x262 fake EPS_STATUS
+
+    // we send these messages either if we have the EPS module and don't use the stock EPS or if we entirely disabled EPS
+    #if (MODULE_EPS || (MODULE_INPUTS && EPS_TYPE==EPS_TYPE_NONE)) && EPS_TYPE != EPS_TYPE_STOCK
+    //0x262 EPS_STATUS
     canhelper_reset_buffer(buf);
+    #if EPS_TYPE_NONE
     buf[3] = 0x3;
     buf[4] = 0x6c;
+    #else
+    canhelper_put_be_int(buf, 0, 0, 1, 3, 4);  // ipas status
+    canhelper_put_be_int(buf, 1, 0, 1, 24, 1); // type
+    canhelper_put_be_int(buf, retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG, 0, 1, 31, 7); // state
+    canhelper_put_toyota_checksum(buf, 0x262, 4);
+    #endif
     can_send_message(0, 0x262, buf);
     cm_tx_cnt++;
+
+    //0x260 STEER_TORQUE_SENSOR  
+    canhelper_reset_buffer(buf);
+    canhelper_put_be_uint(buf, 0, 0, 1, 0, 1);  // steer override
+    canhelper_put_be_int_signed(buf, 0, 0, 1, 15, 16);  // driver torque
+    canhelper_put_be_int_signed(buf, 0, 0, 1, 31, 16);  // steer angle / unused
+    canhelper_put_be_int_signed(buf, retropilotParams.OP_EPS_ACTUAL_TORQUE, 0, 1, 47, 16);
+    canhelper_put_toyota_checksum(buf, 0x260, 7);
+
+    can_send_message(0, 0x260, buf);
+    cm_tx_cnt++;
     #endif
+
+    #if DEBUG_SIMULATE_STEERING_ANGLE_SENSOR
+    //0x25 STEER_ANGLE_SENSOR (simulated through the stepper)
+    if (millis()>3000 && millis()-cm_last_recv_steer_angle<50) { // in this case, last recv is updated by the eps module if it receives valid stepper angles 
+      canhelper_reset_buffer(buf);
+
+      // convert currentSteeringAngle to 1.5 deg basis + fraction -0.7 - +0.7
+      float ang = retropilotParams.currentSteeringAngle;
+      float fraction = (float)(((int)(ang*10))%15)/10.0f;
+      if (fraction > 0.7) {ang++; fraction=fraction-1.5f;}
+      else if (fraction < -0.7) {ang--; fraction=1.5f+fraction;}
+      ang = ((int)(ang/1.5f))*1.5f;
+
+      canhelper_put_be_float_signed(buf, ang, 0, 1.5f, 3, 12);
+      canhelper_put_be_float_signed(buf, fraction, 0, 0.1f, 39, 4);
+      can_send_message(0, 0x25, buf);
+      cm_tx_cnt++;
+    }
+    #endif
+
 }
 
 
@@ -239,20 +272,21 @@ void cm_send_retropilot_can_messages(bool trigger100Hz, bool trigger50Hz, bool t
     #if MODULE_EPS
         cm_last_recv_module_eps=millis();
     		buf[0] |= 1 << 4; // eps heartbeat flag
-    		buf[1] |= retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR ? 0 : 1 << 4; // eps status flag (1 == working)
-        buf[3] = 1; // DETAILED eps driver status (0 == steering angle synchronization, 1 == working, 2 == serial error, 3 == motor error, 4 == encoder error, 5 == calibration error, 6 == steering angle synchronization error)
+    		buf[1] |= retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR ? 0 : 1 << 4;  // eps status flag (1 == working)
+    		buf[1] |= retropilotParams.OP_EPS_TEMPORARY_ERROR || retropilotParams.OP_EPS_UNRECOVERABLE_ERROR  ? 1 : 0 << 5;            // eps error flag
+        buf[3] = eps_stepper_status; // DETAILED eps driver status (0 == steering angle synchronization, 1 == working, 2 == serial error, 3 == motor error, 4 == encoder error, 5 == calibration error, 6 == steering angle synchronization error)
     #endif
     
     buf[6]=++cm_counter;
 
-    canhelper_put_toyota_checksum(buf, 0x112);
+    canhelper_put_toyota_checksum(buf, 0x112, 7);
 
     can_send_message(0, 0x112, buf);
     cm_tx_cnt++;
 
 }
 
-/* called at ~ 1kHz */
+/* called at > 1kHz */
 void cm_loop_recv() {
   CAN_STD_Msg rxMsg;
 
@@ -276,15 +310,15 @@ void cm_loop_recv() {
         break; 
       }
       case 0x343: { // standard toyota ACC_CONTROL (we want to extract the brake requests from ACCEL_CMD here)
-        float BRAKE_CMD = ((rxMsg.buf[0] << 8 | rxMsg.buf[1] << 0) * -1); 
-
-        if (BRAKE_CMD >= OP_MIN_BRAKE_COMMAND) {
+        float BRAKE_CMD    = -canhelper_parse_be_float_signed(rxMsg.buf, 0, 0.001f, 7, 16);
+        
+        if (BRAKE_CMD > OP_MIN_BRAKE_COMMAND) {
           BRAKE_CMD = (BRAKE_CMD>OP_MAX_BRAKE_COMMAND ? OP_MAX_BRAKE_COMMAND : BRAKE_CMD);
         }
-        else {
+        else 
           BRAKE_CMD = OP_MIN_BRAKE_COMMAND;
-        }
-        retropilotParams.BRAKE_CMD_PERCENT = ((100/(OP_MAX_BRAKE_COMMAND - OP_MIN_BRAKE_COMMAND)) * (BRAKE_CMD - OP_MIN_BRAKE_COMMAND));
+
+        retropilotParams.BRAKE_CMD_PERCENT = ((100.0f/(OP_MAX_BRAKE_COMMAND - OP_MIN_BRAKE_COMMAND)) * (BRAKE_CMD - OP_MIN_BRAKE_COMMAND));
         break;
       }
 
@@ -297,7 +331,7 @@ void cm_loop_recv() {
       }
     
       case 0x112: { // retropilot status message
-        if (canhelper_verify_toyota_checksum(rxMsg.buf, 0x112)) {
+        if (canhelper_verify_toyota_checksum(rxMsg.buf, 0x112, 7)) {
           if (rxMsg.buf[0] >> 0 & 1) { // message includes INPUTS heartbeat
             cm_last_recv_module_inputs = millis();
             #if MODULE_INPUTS
@@ -367,24 +401,24 @@ void cm_loop_recv() {
           
         }
 
-        // TODO: update params, update last can receives, verify that no ecu receives messages from its own kind (otherwise unrecoverable error)
         break;
       }
       
       case 0x2e4: { // STEERING_LKA (steer requests from openpilot)
-        if (canhelper_verify_toyota_checksum(rxMsg.buf, 0x2e4)) {
+        if (canhelper_verify_toyota_checksum(rxMsg.buf, 0x2e4, 4)) {
           cm_last_recv_steer_cmd = millis();
           retropilotParams.OP_STEER_REQUEST    = canhelper_parse_be_byte(rxMsg.buf, 0, 1, 0, 1);
-          retropilotParams.OP_COMMANDED_TORQUE = canhelper_parse_be_int(rxMsg.buf, 0, 1, 15, 16);
+          retropilotParams.OP_COMMANDED_TORQUE = canhelper_parse_be_int_signed(rxMsg.buf, 0, 1, 15, 16);
         }
         break;
       }
 
       case 0x25: { // STEER_ANGLE_SENSOR (coming from the TSS steering angle sensor)
         cm_last_recv_steer_angle = millis();
-        float steerAngle    = canhelper_parse_be_float(rxMsg.buf, 0, 1.5f, 3, 12);
-        float steerFraction = canhelper_parse_be_float(rxMsg.buf, 0, 0.1f, 39, 4);
+        float steerAngle    = canhelper_parse_be_float_signed(rxMsg.buf, 0, 1.5f, 3, 12);
+        float steerFraction = canhelper_parse_be_float_signed(rxMsg.buf, 0, 0.1f, 39, 4);
         retropilotParams.currentSteeringAngle = steerAngle+steerFraction;
+        //logger("steering angle: (base: %d, fraction: %d) == %d mdeg\n", (int)steerAngle, (int)(steerFraction*1000), (int)(retropilotParams.currentSteeringAngle*1000));
         break;
       }
       

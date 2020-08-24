@@ -85,7 +85,7 @@ void inputs_setup() {
     ccLastSetSpeed = DEFAULT_SET_SPEED;
 }
 
-/* called at ~ 1kHz */
+/* called at > 1kHz */
 void inputs_loop() {
     if (!retropilotParams.NO_CLUCH_BRAKE_MODE) {
         int stat = digitalRead(CLUTCH_CANCEL_PORT, CLUTCH_CANCEL_PIN);
@@ -120,10 +120,14 @@ void inputs_loop() {
     if (buttonstate3 != lastbuttonstate3) {
         debounceTime3=millis();
     }
+    if (buttonstate4 != lastbuttonstate4) {
+        debounceTime4=millis();
+    }
 
     lastbuttonstate1 = buttonstate1;
     lastbuttonstate2 = buttonstate2;
     lastbuttonstate3 = buttonstate3;
+    lastbuttonstate4 = buttonstate4;
 
 
     if (buttonstate1==LOW && debounceTime1!=0 && (millis()-debounceTime1>=50L || millis()<debounceTime1)) {
@@ -143,6 +147,17 @@ void inputs_loop() {
             debug_actuator = debug_actuator >= 2 ? 0 : debug_actuator+1;
         }
     }
+
+
+    #if DEBUG_SIMULATE_STEERING_ANGLE_SENSOR
+    if (buttonstate2==LOW && buttonstate3==LOW) {
+        if (debounceTime2!=0 || debounceTime3!=0) {
+            debounceTime2=0;
+            debounceTime3=0;
+            eps_debug_zero_simulated_steering_angle();
+        }
+    }
+    #endif
 
     if (buttonstate2==LOW && debounceTime2!=0 && (millis()-debounceTime2>=50L || millis()<debounceTime2)) {
         debounceTime2=0;

@@ -34,8 +34,11 @@
 #include "logger.h"
 
 
-
-
+#if DEBUG_SIMULATE_STEERING_ANGLE_SENSOR
+extern unsigned long cm_last_recv_steer_angle; // from can_manager, must be updated here if we enable simulated steering angle sensor
+bool is_simulated_steering_angle_zeroed;
+float simulated_steering_angle_zero_offset;
+#endif 
 
 unsigned long eps_last_serial_out=0;
 uint8_t eps_serial_package[8];
@@ -43,6 +46,8 @@ uint8_t eps_serial_package[8];
 bool eps_received_serial_message = false;
 bool eps_stepper_available = false;  // set to true if the stepper has no error and is in available state. this is not dependant on temporary stepper error, it's meant to be used internally to check if calibration can progress
 bool eps_steering_angle_synchronization_valid = false; // set to true after 2 consecutive successful synchronizations
+
+uint8_t eps_stepper_status=0; // DETAILED eps driver status (0 == steering angle synchronization, 1 == working, 2 == serial error, 3 == motor error, 4 == encoder error, 5 == calibration error, 6 == steering angle synchronization error)
 
 unsigned long eps_last_temporary_error = 0;
 unsigned long eps_last_serial_write = 0;
@@ -62,7 +67,7 @@ uint32_t eps_unwinding_counter=0;
 
 
 // steering & stepper angle synchronization specific
-unsigned long eps_last_sync_time = 0;
+/* unsigned long eps_last_sync_time = 0;
 unsigned long eps_last_successful_sync = 0;
 int8_t eps_sync_errors=0;
 int8_t eps_sync_success=0;
@@ -76,6 +81,15 @@ float syncTargetStepperAngle=0;
 float eps_target_sync_steering_angle_sum=0;
 float eps_target_sync_stepper_angle_sum=0;
 int8_t eps_sync_sub_retries=0;
+ */
+
+// new steering angle synchronization:
+extern unsigned long cm_last_recv_steer_angle;
+
+unsigned long eps_last_sync_time = 0;
+unsigned long eps_last_successful_sync = 0;
+int8_t eps_sync_errors=0;
+float eps_steering_angle_offset=0;
 
 
 typedef struct SERIAL_DATA_STRUCTURE{
@@ -111,10 +125,10 @@ void eps_receive() {
             logger_e("received loopback eps usart3 package - check external serial connection!\n");
         }
         else {
-            /* logger("CNT: %d  eS: %d  eC: %d  eE: %d  eM: %d  EN: %d  cAng: %d  tAng: %d  currD: %d  currH: %d\n", 
+             /* logger("CNT: %d  eS: %d  eC: %d  eE: %d  eM: %d  EN: %d  cAng: %d  tAng: %d  currD: %d  currH: %d\n", 
                 eps_serial_data_struct.counter, eps_serial_data_struct.statusMask >> 0 & 1, eps_serial_data_struct.statusMask >> 1 & 1,
                 eps_serial_data_struct.statusMask >> 2 & 1, eps_serial_data_struct.statusMask >> 3 & 1, eps_serial_data_struct.statusMask >> 4 & 1,
-                eps_serial_data_struct.currentAngle, eps_serial_data_struct.targetAngle, eps_serial_data_struct.dynamicCurrent, eps_serial_data_struct.holdCurrent); */
+                eps_serial_data_struct.currentAngle, eps_serial_data_struct.targetAngle, eps_serial_data_struct.dynamicCurrent, eps_serial_data_struct.holdCurrent);  */
 
             eps_current_stepper_angle = eps_serial_data_struct.currentAngle;  
             eps_received_serial_message = true;
@@ -122,26 +136,59 @@ void eps_receive() {
     }
 
   	if (eps_received_serial_message) {
+        if (millis()-eps_last_serial_message_received>50) {
+            logger_e("slow stepper frame %dms!\n",(int)(millis()-eps_last_serial_message_received));
+        }
   		eps_last_serial_message_received=millis();
         
-        if (eps_serial_data_struct.statusMask >> 0 & 1 ||  // serial error
-            eps_serial_data_struct.statusMask >> 3 & 1 )  // motor error
+        if (eps_serial_data_struct.statusMask >> 0 & 1) {  // serial error
             eps_last_temporary_error=millis();
+            if (eps_stepper_status!=6) eps_stepper_status=2;
+        }
+        else if(eps_serial_data_struct.statusMask >> 3 & 1 ) { // motor error
+            eps_last_temporary_error=millis();
+            if (eps_stepper_status!=6) eps_stepper_status=3;
+        }
         else
             eps_stepper_available = true;
 
         if (eps_serial_data_struct.statusMask >> 1 & 1 ||  // stepper calibration table error
             eps_serial_data_struct.statusMask >> 2 & 1) {   // encoder error
             retropilotParams.OP_EPS_UNRECOVERABLE_ERROR = true;
+            if (eps_stepper_status!=6) eps_stepper_status=4;
         }
+
+
+        // calculate the current EPS output torque to send to openpilot
+        if ((eps_serial_data_struct.statusMask >> 4 & 1) == 1) {
+            if (ABS(eps_serial_data_struct.currentAngle-eps_serial_data_struct.targetAngle)>0.5f*EPS_GEARING) {
+                if (eps_serial_data_struct.currentAngle-eps_serial_data_struct.targetAngle>0)
+                    retropilotParams.OP_EPS_ACTUAL_TORQUE=STEERING_ANGLE_INVERTED*-eps_serial_data_struct.dynamicCurrent;
+                else
+                    retropilotParams.OP_EPS_ACTUAL_TORQUE=STEERING_ANGLE_INVERTED*eps_serial_data_struct.dynamicCurrent;
+            }
+            else {
+                if (retropilotParams.currentSteeringAngle>0.5f)
+                    retropilotParams.OP_EPS_ACTUAL_TORQUE=eps_serial_data_struct.holdCurrent;
+                else if (retropilotParams.currentSteeringAngle<-0.5f)
+                    retropilotParams.OP_EPS_ACTUAL_TORQUE=-eps_serial_data_struct.holdCurrent;
+                else 
+                    retropilotParams.OP_EPS_ACTUAL_TORQUE=0;
+            }
+        }
+        else
+            retropilotParams.OP_EPS_ACTUAL_TORQUE=0;
+
     }
     else {
         if (millis()-eps_last_serial_message_received>120) {
             eps_last_temporary_error=millis();
             eps_stepper_available = false;
+            if (eps_stepper_status!=6) eps_stepper_status=2;
         }
         else if (millis()-eps_last_serial_message_received>1000) {
             retropilotParams.OP_EPS_UNRECOVERABLE_ERROR = true;
+            if (eps_stepper_status!=6) eps_stepper_status=2;
         }
     }
 
@@ -155,7 +202,7 @@ void eps_receive() {
 void eps_calculate_outputs_from_torque() {
     if (eps_received_serial_message || millis()-eps_last_serial_write>=MIN_CALCULATION_FREQ) {
 
-        float commandedTorque = retropilotParams.OP_COMMANDED_TORQUE;   // must be inverted depending on gearing and stepper wiring
+        float commandedTorque = STEERING_ANGLE_INVERTED*retropilotParams.OP_COMMANDED_TORQUE;   // must be inverted depending on gearing and stepper wiring
         eps_calculated_stepper_target_angle=eps_current_stepper_angle;
         
         eps_calculated_stepper_stop = 1;
@@ -167,13 +214,13 @@ void eps_calculate_outputs_from_torque() {
             eps_calculated_stepper_hold_current = MAX(MIN_HOLD_CURRENT, MIN(MAX_HOLD_CURRENT, MIN_HOLD_CURRENT+(ABS(commandedTorque)-MIN_TORQUE_THRESHOLD)/MAX_COMMANDED_TORQUE*(MAX_HOLD_CURRENT-MIN_HOLD_CURRENT)));
             
             #if REDUCE_UNWINDING_TORQUE     // depends on the implementation in OP
-            if (retropilotParams.currentSteeringAngle<-2) { // unwinding with reduced torque
+            if (retropilotParams.STEERING_ANGLE_INVERTED*currentSteeringAngle<-2) { // unwinding with reduced torque
                 if (eps_unwinding_counter<20) { // ~250ms maximum duration allowed for the last 4° unwinding (misaligned axle or uneven road) - see below
                     eps_calculated_stepper_dynamic_current = eps_calculated_stepper_dynamic_current / DYNAMIC_CURRENT_UNWINDING_DIVISOR;
                     eps_calculated_stepper_hold_current = eps_calculated_stepper_hold_current / HOLD_CURRENT_UNWINDING_DIVISOR;
                 }
-                if (retropilotParams.currentSteeringAngle<-4) eps_unwinding_counter+=2;
-                else if (retropilotParams.currentSteeringAngle<-6) eps_unwinding_counter+=1;
+                if (retropilotParams.STEERING_ANGLE_INVERTED*currentSteeringAngle<-4) eps_unwinding_counter+=2;
+                else if (retropilotParams.STEERING_ANGLE_INVERTED*currentSteeringAngle<-6) eps_unwinding_counter+=1;
             }
             else eps_unwinding_counter=0;
             #endif
@@ -186,26 +233,27 @@ void eps_calculate_outputs_from_torque() {
             eps_calculated_stepper_dynamic_current = MAX(MIN_DYNAMIC_CURRENT, MIN(MAX_DYNAMIC_CURRENT, eps_calculated_stepper_dynamic_current/100.0f*torqueScale));
 
             // reduce dynamic current at steering angle limit edges 10% per degree over STEERING_ANGLE_SOFT_LIMITATION
-            float steeringAngleSoftLimit = STEERING_ANGLE_SOFT_LIMITATION_100KMH + (STEERING_ANGLE_SOFT_LIMITATION_0KMH-STEERING_ANGLE_SOFT_LIMITATION_100KMH)/100.0f*(100.0f-retropilotParams.vssAvgSpeedKMH);
-            if (retropilotParams.currentSteeringAngle>steeringAngleSoftLimit)
-                eps_calculated_stepper_dynamic_current = MIN(eps_calculated_stepper_dynamic_current, MAX(0.0f, eps_calculated_stepper_dynamic_current/100*(100-10*(retropilotParams.currentSteeringAngle-steeringAngleSoftLimit))));
+            float steeringAngleSoftLimit = STEERING_ANGLE_SOFT_LIMITATION_100KMH + (STEERING_ANGLE_SOFT_LIMITATION_0KMH-STEERING_ANGLE_SOFT_LIMITATION_100KMH)/100.0f*(100.0f-MIN(100.0f, retropilotParams.vssAvgSpeedKMH));
+            if (STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle>steeringAngleSoftLimit)
+                eps_calculated_stepper_dynamic_current = MIN(eps_calculated_stepper_dynamic_current, MAX(0.0f, eps_calculated_stepper_dynamic_current/100*(100-10*(STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle-steeringAngleSoftLimit))));
             
             eps_calculated_stepper_stop = 0;
             eps_calculated_stepper_target_angle = eps_current_stepper_angle + EPS_GEARING * 10; // 10° of steering angle is our new target position offset - only restricted for safety (maximum error on connection failure). should be significant enough to have the stepper PID detect a worthy position error
+            
             eps_debug_torque_percent = eps_calculated_stepper_dynamic_current*100.0f/MAX_DYNAMIC_CURRENT;
         }
         else if (commandedTorque<-MIN_TORQUE_THRESHOLD) {
-            eps_calculated_stepper_dynamic_current = -MAX(MIN_DYNAMIC_CURRENT, MIN(MAX_DYNAMIC_CURRENT, MIN_DYNAMIC_CURRENT+(ABS(commandedTorque)-MIN_TORQUE_THRESHOLD)/MAX_COMMANDED_TORQUE*(MAX_DYNAMIC_CURRENT-MIN_DYNAMIC_CURRENT)));
-            eps_calculated_stepper_hold_current = -MAX(MIN_HOLD_CURRENT, MIN(MAX_HOLD_CURRENT, MIN_HOLD_CURRENT+(ABS(commandedTorque)-MIN_TORQUE_THRESHOLD)/MAX_COMMANDED_TORQUE*(MAX_HOLD_CURRENT-MIN_HOLD_CURRENT)));
+            eps_calculated_stepper_dynamic_current = MAX(MIN_DYNAMIC_CURRENT, MIN(MAX_DYNAMIC_CURRENT, MIN_DYNAMIC_CURRENT+(ABS(commandedTorque)-MIN_TORQUE_THRESHOLD)/MAX_COMMANDED_TORQUE*(MAX_DYNAMIC_CURRENT-MIN_DYNAMIC_CURRENT)));
+            eps_calculated_stepper_hold_current = MAX(MIN_HOLD_CURRENT, MIN(MAX_HOLD_CURRENT, MIN_HOLD_CURRENT+(ABS(commandedTorque)-MIN_TORQUE_THRESHOLD)/MAX_COMMANDED_TORQUE*(MAX_HOLD_CURRENT-MIN_HOLD_CURRENT)));
 
             #if REDUCE_UNWINDING_TORQUE     // depends on the implementation in OP, if it already accounts for unwinding, this should be disabled
-            if (retropilotParams.currentSteeringAngle>2) { // unwinding with reduced torque
+            if (STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle>2) { // unwinding with reduced torque
                 if (eps_unwinding_counter<20) { // ~250ms maximum duration allowed for the last 4° unwinding (misaligned axle or uneven road) - see below
                     eps_calculated_stepper_dynamic_current = eps_calculated_stepper_dynamic_current / DYNAMIC_CURRENT_UNWINDING_DIVISOR;
                     eps_calculated_stepper_hold_current = eps_calculated_stepper_hold_current / HOLD_CURRENT_UNWINDING_DIVISOR;
                 }
-                if (retropilotParams.currentSteeringAngle>6) eps_unwinding_counter+=1;
-                else if (retropilotParams.currentSteeringAngle>4) eps_unwinding_counter+=2;
+                if (STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle>6) eps_unwinding_counter+=1;
+                else if (STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle>4) eps_unwinding_counter+=2;
             }
             else eps_unwinding_counter=0;
             #endif
@@ -219,9 +267,9 @@ void eps_calculate_outputs_from_torque() {
 
 
             // reduce dynamic current at steering angle limit edges 10% per degree over STEERING_ANGLE_SOFT_LIMITATION
-            float steeringAngleSoftLimit = STEERING_ANGLE_SOFT_LIMITATION_100KMH + (STEERING_ANGLE_SOFT_LIMITATION_0KMH-STEERING_ANGLE_SOFT_LIMITATION_100KMH)/100.0f*(100.0f-retropilotParams.vssAvgSpeedKMH);
-            if (retropilotParams.currentSteeringAngle<-steeringAngleSoftLimit)
-                eps_calculated_stepper_dynamic_current = MIN(eps_calculated_stepper_dynamic_current, MAX(0.0f, eps_calculated_stepper_dynamic_current/100.0f*(100.0f-10.0f*(-retropilotParams.currentSteeringAngle-steeringAngleSoftLimit))));
+            float steeringAngleSoftLimit = STEERING_ANGLE_SOFT_LIMITATION_100KMH + (STEERING_ANGLE_SOFT_LIMITATION_0KMH-STEERING_ANGLE_SOFT_LIMITATION_100KMH)/100.0f*(100.0f-MIN(100.0f, retropilotParams.vssAvgSpeedKMH));
+            if (STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle<-steeringAngleSoftLimit)
+                eps_calculated_stepper_dynamic_current = MIN(eps_calculated_stepper_dynamic_current, MAX(0.0f, eps_calculated_stepper_dynamic_current/100.0f*(100.0f-10.0f*(-STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle-steeringAngleSoftLimit))));
 
             eps_calculated_stepper_stop = 0;
             eps_calculated_stepper_target_angle = eps_current_stepper_angle - EPS_GEARING * 10; // 10° of steering angle is our new target position offset - only restricted for safety (maximum error on connection failure). should be significant enough to have the stepper PID detect a worthy position error
@@ -253,9 +301,8 @@ void eps_send() {
 
         eps_serial_data_struct.counter = ++msg_counter;
 
-        /* logger("OUT:  stat: %d  tAng: %d  currD: %d  currH: %d\n",  eps_serial_data_struct.statusMask,
+         /* logger("OUT:  stat: %d  tAng: %d  currD: %d  currH: %d\n",  eps_serial_data_struct.statusMask,
                 (int32_t)eps_serial_data_struct.targetAngle, (int)eps_serial_data_struct.dynamicCurrent, eps_serial_data_struct.holdCurrent ); */
-
 
 		eps_serial_data_struct.checksum = eps_serial_data_struct.statusMask+eps_serial_data_struct.currentAngle+eps_serial_data_struct.targetAngle+eps_serial_data_struct.dynamicCurrent+eps_serial_data_struct.holdCurrent+eps_serial_data_struct.counter;
 		et_send_data(eps_serial_data_struct);
@@ -268,99 +315,57 @@ void eps_send() {
 void eps_synchronize_angle_sensor() {
     if (millis()<3000) return;
     if (millis()-eps_last_sync_time<ANGLE_SYNC_STEP_FREQUENCY) return;
-    
-    
-    if (eps_sync_errors>=6)
-        retropilotParams.OP_EPS_UNRECOVERABLE_ERROR=true;
-
-    if (eps_sync_errors>=3 || millis()-eps_last_successful_sync>300000) {
-        eps_steering_angle_synchronization_valid=false;
-    }
-    
 
     if (!eps_stepper_available) {
-        eps_is_syncing=false;
         return;
     }
-    if (!eps_is_syncing && !eps_received_serial_message) return;
 
-    if (!eps_is_syncing && millis()-eps_last_successful_sync<1000) return;
+    if (eps_sync_errors>=6) {
+        retropilotParams.OP_EPS_UNRECOVERABLE_ERROR=true;
+        eps_stepper_status=6;
+        return;
+    }    
 
+
+    if (!eps_received_serial_message) {
+        if (millis()-eps_last_serial_message_received>=200) {
+            eps_sync_errors++;
+            logger_e("EPS sync error #1\n");
+        }
+        return;
+    }
+    if (millis()-cm_last_recv_steer_angle>=200) {
+        if (millis()-eps_last_successful_sync>=200) {
+           eps_sync_errors++;
+            logger_e("EPS sync error #2\n");
+        }
+        eps_last_sync_time=millis();
+        return;
+    }
+    
+    if (!eps_steering_angle_synchronization_valid) {
+        eps_steering_angle_synchronization_valid=true;
+        eps_steering_angle_offset=STEERING_ANGLE_INVERTED*(eps_current_stepper_angle/EPS_GEARING)-retropilotParams.currentSteeringAngle;
+        eps_last_successful_sync=millis();
+        eps_last_sync_time=millis();
+        logger("EPS offset calculated: %d\n", (int)(eps_steering_angle_offset*100));
+        return;
+    }
+
+    float current_eps_steering_angle_offset=-(eps_current_stepper_angle/EPS_GEARING)-retropilotParams.currentSteeringAngle;
+
+    if (ABS(current_eps_steering_angle_offset-eps_steering_angle_offset)>=EPS_MAX_ANGLE_ERROR) {
+        eps_sync_errors++;
+        logger_e("EPS sync error: %d\n", (int)(ABS(current_eps_steering_angle_offset-eps_steering_angle_offset)*100));
+    }
+    else {
+        eps_sync_errors=MAX(0, eps_sync_errors-1);
+        eps_last_successful_sync=millis();
+    }
+    
     eps_last_sync_time=millis();
-
-    if (!eps_is_syncing) {
-        eps_is_syncing=true;
-        eps_sync_start_stepper_angle=eps_current_stepper_angle;
-        eps_sync_start_steering_angle=retropilotParams.currentSteeringAngle;
-        eps_sync_start=millis();
-        eps_target_sync_step_counter=-1;
-        eps_sync_sub_retries=0;
-    }
-
-    if (eps_is_syncing && millis()-eps_sync_start>10000) {
-        eps_is_syncing=false;
-        return;
-    }
-
-    if (eps_is_syncing && millis()-eps_sync_start>=500) {
-        float diffSteeringAngle = ABS(retropilotParams.currentSteeringAngle-eps_sync_start_steering_angle);
-        if (eps_target_sync_step_counter==-1) {
-            if (diffSteeringAngle>=2) {
-                eps_target_sync_step_counter=0;
-                eps_sync_target_steering_angle = retropilotParams.currentSteeringAngle;
-                eps_target_sync_steering_angle_sum=retropilotParams.currentSteeringAngle;
-                eps_target_sync_stepper_angle_sum=eps_current_stepper_angle;
-            }
-        }
-        else {
-            if (ABS(retropilotParams.currentSteeringAngle-eps_sync_target_steering_angle)>1.0f) { // is the steering wheel moves too much while finding sync target, reset
-                eps_target_sync_step_counter=-1;
-            }
-            else {
-                eps_target_sync_step_counter++;
-                eps_target_sync_steering_angle_sum+=retropilotParams.currentSteeringAngle;
-                eps_target_sync_stepper_angle_sum+=eps_current_stepper_angle;
-
-                if (eps_target_sync_step_counter>=3) {
-                    float avgFinalSteeringAngle=eps_target_sync_steering_angle_sum/4.0f;
-                    float avgFinalStepperAngle=eps_target_sync_stepper_angle_sum/4.0f;
-
-                    float finalSteeringAngleDiff = ABS(avgFinalSteeringAngle-eps_sync_start_steering_angle);
-                    float finalStepperAngleDiff = ABS(avgFinalStepperAngle-eps_sync_start_stepper_angle);
-
-                    float measuredGearing = finalStepperAngleDiff/finalSteeringAngleDiff;
-
-                    if (ABS(measuredGearing-EPS_GEARING)>EPS_GEARING*0.2) {
-                        if (eps_sync_sub_retries>=3) {
-                            eps_sync_errors++;
-                            eps_sync_success=0;
-                            eps_is_syncing=false;
-                            eps_last_successful_sync=millis();
-                        }
-                        else {  // we allow 3 retries of the short (100ms sync subroutine. it's entirely possible the sync fails due to latencies introduced by the steering angle sensor)
-                            eps_sync_sub_retries++;
-                            eps_target_sync_step_counter=-1;
-                        }
-                    }
-                    else { 
-                        eps_sync_errors--;
-                        if (eps_sync_errors<0) eps_sync_errors=0;
-                        eps_sync_success++;
-                        if (eps_sync_success>10) eps_sync_success=10;
-
-                        if (eps_sync_errors==0 && eps_sync_success>=2)
-                            eps_steering_angle_synchronization_valid=true;
-                        eps_is_syncing=false;
-                        eps_last_successful_sync=millis();
-                    }
-
-                    
-                    
-                }
-            }
-        }
-    }
 }
+
 
 
 void eps_debug_torque_left() {
@@ -376,23 +381,62 @@ void eps_debug_torque_right() {
 }
 
 
-/* called at ~ 1kHz */
+void eps_debug_zero_simulated_steering_angle() {
+    #if DEBUG_SIMULATE_STEERING_ANGLE_SENSOR
+    if (millis()-eps_last_serial_message_received<150) {
+        is_simulated_steering_angle_zeroed=true;
+        simulated_steering_angle_zero_offset=eps_current_stepper_angle;
+    }
+    #endif
+}
+
+/* called at > 1kHz */
 void eps_loop()
 {
     eps_receive();
+
+    #if DEBUG_SIMULATE_STEERING_ANGLE_SENSOR
+        if (!is_simulated_steering_angle_zeroed) {
+            eps_last_temporary_error=millis();
+        } else if (millis()-eps_last_serial_message_received<150) 
+            cm_last_recv_steer_angle = millis();
+
+        retropilotParams.currentSteeringAngle=STEERING_ANGLE_INVERTED*(eps_current_stepper_angle-simulated_steering_angle_zero_offset)/EPS_GEARING;
+    #else
+    /*if (retropilotParams.DEBUGMODE) {
+        retropilotParams.currentSteeringAngle=-eps_current_stepper_angle/EPS_GEARING;
+    }*/
+    #endif
+
 
     if (millis()-eps_last_temporary_error<500 || !eps_steering_angle_synchronization_valid) {
         retropilotParams.OP_EPS_TEMPORARY_ERROR=true;
     }
     else {
         retropilotParams.OP_EPS_TEMPORARY_ERROR=false;
+        if (eps_stepper_available && !retropilotParams.OP_EPS_UNRECOVERABLE_ERROR) eps_stepper_status=1;
     }
 
-    if (retropilotParams.DEBUGMODE) {
-        retropilotParams.currentSteeringAngle=eps_current_stepper_angle/EPS_GEARING;
-    }
+    // update the status flag sent to openpilot in the 
+    if (retropilotParams.OP_EPS_UNRECOVERABLE_ERROR)
+        retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG = 99; // steering permanently not available
+    else if (retropilotParams.OP_EPS_TEMPORARY_ERROR)
+        retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG = 2;  // steering temporary not available
+    else if (retropilotParams.OP_ON && retropilotParams.OP_LKAS_ENABLED && retropilotParams.OP_STEER_REQUEST==1)
+        retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG = 5; // active
+    else
+        retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG = 1; // standby
 
+    if (!retropilotParams.OP_ON || !retropilotParams.OP_LKAS_ENABLED)   // this allows us to drive ACC only even if no eps is installed or if it's faulty
+        retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG = 1; // standby
+
+
+
+    #if DEBUG_SIMULATE_STEERING_ANGLE_SENSOR
+    if (is_simulated_steering_angle_zeroed) eps_synchronize_angle_sensor();
+    #else
     eps_synchronize_angle_sensor();
+    #endif
 
     eps_calculate_outputs_from_torque();
 

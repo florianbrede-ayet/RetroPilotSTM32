@@ -9,6 +9,8 @@
 #define OLED_REFRESH_MS 100
 
 
+#define DEBUG_SIMULATE_STEERING_ANGLE_SENSOR    1   // DEBUG ONLY!  if set to 1, the encoder will replace a physical TSS steering angle sensor (zero sensor by pressing +/- on the keypad while disengaged - required before able to engage)
+
 #define CAR_WITHOUT_ABS_BRAKES    1    // set to 1 if the car does not have antilock-braking. if enabled, braking will be interrupted within ~100ms (depending on VSS sensor) if a wheel-lock is detected
 
 
@@ -16,8 +18,10 @@
 #define EPS_TYPE_NONE             0
 #define EPS_TYPE_TORQUE           1
 #define EPS_TYPE_POSITION         2
+#define EPS_TYPE_STOCK            3 // stock means an actual toyota eps is installed
 
 #define EPS_TYPE    EPS_TYPE_TORQUE
+//#define EPS_TYPE    EPS_TYPE_NONE
 
 
 
@@ -28,10 +32,11 @@
 #define MODULE_EPS                1
 
 
-/* V1.1 BMW Actuator 
-OLD CARS ECU throttle & cruise combined
-This sketch can be used to control a BMW cruise throttle actuator (BMW/VDO "8 369 027" / "408.201/013/001") over CAN and will also handle the cruise part (speed signal, buttons, cruise state). 
-based on: https://github.com/Lukilink/actuator_ECU
+/* RETROPILOT STM32 V1.0
+
+This ECU can be used to control a BMW cruise throttle actuator (BMW/VDO "8 369 027" / "408.201/013/001") over CAN and will also handle the cruise part (speed signal, buttons, cruise state). 
+
+original research: https://github.com/Lukilink
 
 COMPONENTS:
 - STM32F405 Retropilot ECU
@@ -49,9 +54,9 @@ RETROPILOT STM32F405 ECU PINOUT:
 
 J_INOUT1
 
-KEYPAD 2 / SPD+		J_INOUT1 1			PA0
-KEYPAD 3 / SPD-		J_INOUT1 2			PA1
-KEYPAD 4 / ON		J_INOUT1 3			PA2
+KEYPAD 2 / ON		J_INOUT1 1			PA0
+KEYPAD 4 / SPD-		J_INOUT1 2			PA1
+KEYPAD 3 / SPD+		J_INOUT1 3			PA2
 KEYPAD 5 / LKAS		J_INOUT1 4			PA3
 CLUTCH / HALL		J_INOUT1 5			PB12
 BRAKE / HALL		J_INOUT1 6			PB13
@@ -229,8 +234,8 @@ PIN_OLED_SDA 	J_I2C_DISP 4	PB7
 #define OP_MAX_GAS_COMMAND 1194.0f //the max Value which comes from OP on CAN ID 0x200 (actually 2074, it's being clipped) * this works because the PI tuning can be adapted to most "ranges"
 #define OP_MIN_GAS_COMMAND 500.0f //the min Value which comes from OP on CAN ID 0x200 (actually lower, but we clip anything below which will result in "0" throttle)
 
-#define OP_MIN_BRAKE_COMMAND 0.0f   // this is no braking (extracted from 0x343 GAS_CMD message)
-#define OP_MAX_BRAKE_COMMAND 500.0f // this is full braking (extracted from 0x343 GAS_CMD message)
+#define OP_MIN_BRAKE_COMMAND 0.0f   // this is no braking (extracted from 0x343 GAS_CMD message in m/s)
+#define OP_MAX_BRAKE_COMMAND 2.0f // this is full braking (extracted from 0x343 GAS_CMD message in m/s)
 
 
 

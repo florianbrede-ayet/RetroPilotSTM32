@@ -98,6 +98,28 @@ void debug_gpio() {
     );
 
 }
+
+extern float eps_current_stepper_angle; // current stepper angle received from the closed loop driver
+unsigned long last_debug_state=0;
+
+void debug_state() {
+  if (millis()-last_debug_state<200) return;
+  last_debug_state = millis();
+
+
+  logger("STATE  |  ERROR: %d   ON: %d   A_STEER: %d   A_BRAKE: %d   A_GAS: %d   TORQUE:   %d   BRAKE_PER: %d   GAS_PER: %d   BRAKE_POTI: %d   GAS_POTI: %d   STEER_ANG: %d   STEPPER: %d   EPS_TOYOTA_STATUS: %d\n",
+    retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR || retropilotParams.OP_FAULTY_ECU || retropilotParams.OP_ERROR_CAN ? 1 : 0,
+    retropilotParams.OP_ON,
+    retropilotParams.ALLOW_STEERING, retropilotParams.ALLOW_BRAKE, retropilotParams.ALLOW_STEERING,
+    (int)retropilotParams.OP_COMMANDED_TORQUE, (int)retropilotParams.BRAKE_CMD_PERCENT, (int)retropilotParams.GAS_CMD_PERCENT,
+    adcRead(THROTTLE_ACTUATOR_POTI_PIN),
+    adcRead(BRAKE_ACTUATOR_POTI_PIN),
+    (int)(retropilotParams.currentSteeringAngle*100),
+    (int)(eps_current_stepper_angle/EPS_GEARING*100),
+    retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG
+    );
+
+}
 #endif
 
 extern uint8_t debug_actuator;
@@ -111,14 +133,19 @@ void debug_general() {
   if (millis()-last_debug_general<500) return;
   last_debug_general = millis();
 
-  logger("ACTU  |  DEB_ACT: %s   AT_TAR: %-4d   AT_POT: %-4d   AB_TAR: %-4d   AB_POT: %-4d   EPS_AVAIL: %d/%d  EPS_TORQUE: %d%\n",
+  logger("ACTU  |  DEB_ACT: %s   AT_TAR: %-4d   AT_POT: %-4d   AB_TAR: %-4d   AB_POT: %-4d   EPS_AVAIL: %d/%d   EPS_TORQUE: %d%\n",
     debug_actuator==0 ? "THR" : debug_actuator==1 ? "BRA" : "EPS",
     at_actuator_target_position,
     at_actuator_poti_position,
     ab_actuator_target_position,
     ab_actuator_poti_position,
+    #if EPS_TYPE != EPS_TYPE_NONE && EPS_TYPE != EPS_TYPE_STOCK
     retropilotParams.OP_EPS_TEMPORARY_ERROR ? 0 : 1, eps_stepper_available ? 1 : 0, eps_debug_torque_percent
+    #else
+    0, 0, 0
+    #endif
     );
+  
 }
 
 void retropilot_loop_safety() {
@@ -126,8 +153,7 @@ void retropilot_loop_safety() {
   retropilotParams.OP_FAULTY_ECU = (millis()-cm_last_recv_module_error_flag<1000);
 
   retropilotParams.OP_ERROR_CAN = ((!retropilotParams.DEBUGMODE && 
-                                      (millis()-cm_last_recv_steer_cmd > 50 || 
-                                      millis()-cm_last_recv_steer_angle > 50 || 
+                                    (
                                       millis()-cm_last_recv > 100 || 
                                       millis()-cm_last_recv_module_inputs > 100 || 
                                       millis()-cm_last_recv_module_vss > 100 || 
@@ -135,8 +161,14 @@ void retropilot_loop_safety() {
                                       millis()-cm_last_recv_module_abrake > 100)
                                     ));
   #if EPS_TYPE != EPS_NONE
-  if (!retropilotParams.DEBUGMODE && millis()-cm_last_recv_module_eps > 100) 
-    retropilotParams.OP_ERROR_CAN=true;
+  if (!retropilotParams.DEBUGMODE && millis()-cm_last_recv_steer_angle > 50) 
+    retropilotParams.OP_ERROR_LKAS=true;
+  else if (!retropilotParams.DEBUGMODE && millis()-cm_last_recv_module_eps > 100) 
+    retropilotParams.OP_ERROR_LKAS=true;
+  else if (!retropilotParams.DEBUGMODE && millis()-cm_last_recv_steer_cmd > 100) 
+    retropilotParams.OP_ERROR_LKAS=true;
+  else
+    retropilotParams.OP_ERROR_LKAS=false;
   #endif
 
   if (has_can_lowlevel_error)
@@ -145,7 +177,7 @@ void retropilot_loop_safety() {
 
   retropilotParams.ALLOW_THROTTLE = retropilotParams.OP_ON && !retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR && !retropilotParams.OP_FAULTY_ECU && !retropilotParams.OP_ERROR_CAN && !retropilotParams.OP_BRAKE_PRESSED && !retropilotParams.OP_CLUTCH_PRESSED && retropilotParams.BRAKE_CMD_PERCENT==0;
   retropilotParams.ALLOW_BRAKE    = retropilotParams.OP_ON && !retropilotParams.OP_WHEELLOCK_DETECTED &&!retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR && !retropilotParams.OP_FAULTY_ECU && !retropilotParams.OP_ERROR_CAN && !retropilotParams.OP_CLUTCH_PRESSED && !retropilotParams.OP_GAS_PRESSED && retropilotParams.BRAKE_CMD_PERCENT>0;
-  retropilotParams.ALLOW_STEERING = retropilotParams.OP_ON && !retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR && !retropilotParams.OP_FAULTY_ECU && !retropilotParams.OP_ERROR_CAN && retropilotParams.OP_LKAS_ENABLED;
+  retropilotParams.ALLOW_STEERING = retropilotParams.OP_ON && !retropilotParams.OP_ERROR_LKAS && !retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR && !retropilotParams.OP_FAULTY_ECU && !retropilotParams.OP_ERROR_CAN && retropilotParams.OP_LKAS_ENABLED;
     
   // whenever there is any actual error, make sure to send OP_ON=false on the canbus so openpilot knows it's not supposed to try engaging
   if (retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR || retropilotParams.OP_FAULTY_ECU || retropilotParams.OP_ERROR_CAN) {   
@@ -188,6 +220,7 @@ void module_loop() {
 
   #if DEBUG
   debug_gpio();
+  debug_state();
   #endif
 
   if (retropilotParams.DEBUGMODE)

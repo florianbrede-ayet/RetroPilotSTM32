@@ -38,6 +38,7 @@
 #include "critical.h"
 #include "logger.h"
 #include "can_handler.h"
+#include "retropilot/canhelper.h"
 
 #ifdef MODULE_RETROPILOT_ECU
 #include "retropilot/main.h"
@@ -241,6 +242,43 @@ int main(void)
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
 
+  uint8_t buf[8];
+
+
+/* 0.3/1.5 = 0;
+0.3%1.5 = 0.3;
+
+1.4/1.5 = 0;
+1.4 - 0 = 1.4;
+
+1.6 / 1.5 = 1
+1.6 - 1.5
+ */
+
+
+/* for (int c=-25; c<25; c++) {
+     if (HAL_IWDG_Refresh(&hiwdg) != HAL_OK) {logger_e("unable to reset watchdog timer!\n");}
+ logger("------- c = %d --------\n",c );
+  float currentSteeringAngle = c; currentSteeringAngle=currentSteeringAngle/10.0f;
+  float ang = currentSteeringAngle;
+  float fraction = (float)(((int)(ang*10))%15)/10.0f;
+  if (fraction > 0.7) {ang++; fraction=fraction-1.5f;}
+  else if (fraction < -0.7) {ang--; fraction=1.5f+fraction;}
+  ang = ((int)(ang/1.5f))*1.5f;
+
+
+  canhelper_reset_buffer(buf);
+
+  logger("REAL: %d   PUT angle: %d / fraction: %d\n", (int)(currentSteeringAngle*10), ((int)(ang*10)), (int)(fraction*10));
+  canhelper_put_be_float_signed(buf, ang, 0, 1.5f, 3, 12);
+  canhelper_put_be_float_signed(buf, fraction, 0, 0.1f, 39, 4);
+  //canhelper_print_buffer(buf);
+  float steerAngle    = canhelper_parse_be_float_signed(buf, 0, 1.5f, 3, 12);
+  float steerFraction = canhelper_parse_be_float_signed(buf, 0, 0.1f, 39, 4);
+  logger("REAL: %d   PARSE angle: %d / fraction: %d\n", ((int)(steerAngle*10+steerFraction*10)), (int)(steerAngle*10), (int)(steerFraction*10));
+  logger("------- finished --------\n");
+}
+ */
   while(1) {
     if (HAL_IWDG_Refresh(&hiwdg) != HAL_OK) {logger_e("unable to reset watchdog timer!\n");}
 

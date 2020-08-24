@@ -56,22 +56,47 @@ uint32_t canhelper_parse_be_uint(uint8_t *buffer, float paramOffset, float param
     return returnValue;
 }
 
+int32_t canhelper_parse_be_int_signed(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size) {
+    int32_t rawValue = canhelper_parse_be_uint(buffer, 0, 1, mostSignifcantBit, size);
+    int32_t max_value = 1<<(size-1);
+    int32_t value;
+    if (rawValue<max_value)
+        value = rawValue*paramScale+paramOffset;
+    else
+        value = (-max_value+(rawValue-max_value))*paramScale+paramOffset;
+    return value;
+}
+
+
 int32_t canhelper_parse_be_int(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size) {
     uint32_t rawValue = canhelper_parse_be_uint(buffer, 0, 1, mostSignifcantBit, size);
     int32_t value = rawValue*paramScale+paramOffset;
     return value;
 }
+
+
 float canhelper_parse_be_float(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size) {
     uint32_t rawValue = canhelper_parse_be_uint(buffer, 0, 1, mostSignifcantBit, size);
     float value = rawValue*paramScale+paramOffset;
     return value;
 }
+
+float canhelper_parse_be_float_signed(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size) {
+    int32_t rawValue = canhelper_parse_be_uint(buffer, 0, 1, mostSignifcantBit, size);
+    int32_t max_value = 1<<(size-1);
+    float value;
+    if (rawValue<max_value)
+        value = rawValue*paramScale+paramOffset;
+    else
+        value = (-max_value+(rawValue-max_value))*paramScale+paramOffset;
+    return value;
+}
+
 uint8_t canhelper_parse_be_byte(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size) {
     uint32_t rawValue = canhelper_parse_be_uint(buffer, 0, 1, mostSignifcantBit, size);
     uint8_t value = rawValue*paramScale+paramOffset;
     return value;
 }
-
 
 void canhelper_put_be_internal(uint8_t *buffer, uint32_t value, uint8_t mostSignifcantBit, uint8_t size) {
     if (size>32) {
@@ -101,14 +126,32 @@ void canhelper_put_be_int(uint8_t *buffer, int32_t value, float paramOffset, flo
     uint32_t adjustedValue = (value-paramOffset)/paramScale;
     return canhelper_put_be_internal(buffer, adjustedValue, mostSignifcantBit, size);
 }
+
+void canhelper_put_be_int_signed(uint8_t *buffer, int32_t value, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size) {
+    int32_t adjustedValue = ROUND((value-paramOffset)/paramScale);
+    int32_t max_value = 1<<(size-1);
+    if (adjustedValue<0)
+        adjustedValue = max_value*2+adjustedValue;
+    return canhelper_put_be_internal(buffer, adjustedValue, mostSignifcantBit, size);
+}
+
 void canhelper_put_be_uint(uint8_t *buffer, uint32_t value, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size) {
     uint32_t adjustedValue = (value-paramOffset)/paramScale;
     return canhelper_put_be_internal(buffer, adjustedValue, mostSignifcantBit, size);
 }
 void canhelper_put_be_float(uint8_t *buffer, float value, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size) {
-    uint32_t adjustedValue = (value-paramOffset)/paramScale;
+    uint32_t adjustedValue = ROUND((value-paramOffset)/paramScale);
     return canhelper_put_be_internal(buffer, adjustedValue, mostSignifcantBit, size);
 }
+
+void canhelper_put_be_float_signed(uint8_t *buffer, float value, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size) {
+    int32_t adjustedValue = ROUND((value-paramOffset)/paramScale);
+    int32_t max_value = 1<<(size-1);
+    if (adjustedValue<0)
+        adjustedValue = max_value*2+adjustedValue;
+    return canhelper_put_be_internal(buffer, adjustedValue, mostSignifcantBit, size);
+}
+
 
 /*
 uint32_t CanHelper::parseParameterLittleEndianUnsignedLong(uint8_t *buffer, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
@@ -209,10 +252,7 @@ void CanHelper::putParameterLittleEndian(uint8_t *buffer, float value, float par
 */
 
 
-
-
-uint8_t canhelper_calculate_toyota_checksum(uint8_t *buffer, uint16_t canTx) {
-  uint8_t len = 7;
+uint8_t canhelper_calculate_toyota_checksum(uint8_t *buffer, uint16_t canTx, uint8_t len) {
   uint8_t checksum = 0;
   checksum = ((canTx & 0xFF00) >> 8) + (canTx & 0x00FF) + len + 1;
   for (int ii = 0; ii < len; ii++) {
@@ -221,18 +261,18 @@ uint8_t canhelper_calculate_toyota_checksum(uint8_t *buffer, uint16_t canTx) {
   return checksum;
 }
 
-void canhelper_put_toyota_checksum(uint8_t *buffer, uint16_t canTx) {
-  return canhelper_put_be_int(buffer, canhelper_calculate_toyota_checksum(buffer, canTx), 0, 1, 56, 8);
+void canhelper_put_toyota_checksum(uint8_t *buffer, uint16_t canTx, uint8_t len) {
+    buffer[len]=canhelper_calculate_toyota_checksum(buffer, canTx, len);
 }
 
 
-bool canhelper_verify_toyota_checksum(uint8_t *buffer, uint16_t canTx) {
-    uint8_t checksum = canhelper_calculate_toyota_checksum(buffer, canTx);
-    if (checksum==buffer[7])
+bool canhelper_verify_toyota_checksum(uint8_t *buffer, uint16_t canTx, uint8_t len) {
+    uint8_t checksum = canhelper_calculate_toyota_checksum(buffer, canTx, len);
+    if (checksum==buffer[len])
         return true;
+    logger("CAN CHECKSUM MISMATCH for %d (%d vs %d)!\n", canTx, checksum, buffer[len]);
     return false;
 }
-
 
 void canhelper_reset_buffer(uint8_t *buffer) {
     buffer[0]=buffer[1]=buffer[2]=buffer[3]=buffer[4]=buffer[5]=buffer[6]=buffer[7]=0;

@@ -75,14 +75,20 @@
 
 uint32_t canhelper_parse_be_uint(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);
 int32_t canhelper_parse_be_int(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);
+int32_t canhelper_parse_be_int_signed(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);
 float canhelper_parse_be_float(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);  
+float canhelper_parse_be_float_signed(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);  
 uint8_t canhelper_parse_be_byte(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);
+
 void canhelper_put_be_int(uint8_t *buffer, int32_t value, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);   
+void canhelper_put_be_int_signed(uint8_t *buffer, int32_t value, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);
 void canhelper_put_be_uint(uint8_t *buffer, uint32_t value, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);   
 void canhelper_put_be_float(uint8_t *buffer, float value, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);
-uint8_t canhelper_calculate_toyota_checksum(uint8_t *buffer, uint16_t canTx);
-void canhelper_put_toyota_checksum(uint8_t *buffer, uint16_t canTx);
-bool canhelper_verify_toyota_checksum(uint8_t *buffer, uint16_t canTx);
+void canhelper_put_be_float_signed(uint8_t *buffer, float value, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);
+
+uint8_t canhelper_calculate_toyota_checksum(uint8_t *buffer, uint16_t canTx, uint8_t len);
+void canhelper_put_toyota_checksum(uint8_t *buffer, uint16_t canTx, uint8_t len);
+bool canhelper_verify_toyota_checksum(uint8_t *buffer, uint16_t canTx, uint8_t len);
 void canhelper_reset_buffer(uint8_t *buffer);
 
 #endif

@@ -13,6 +13,7 @@ typedef struct {
     bool ALLOW_BRAKE;
     bool ALLOW_STEERING;
 
+    bool OP_ERROR_LKAS;                 // set to true in safety if there is any problem with the eps communication. separate because it's not supposed to "break" ACC functionality
     float GAS_CMD_PERCENT;
     float BRAKE_CMD_PERCENT;
     
@@ -46,6 +47,9 @@ typedef struct {
 
     bool OP_EPS_UNRECOVERABLE_ERROR;    // set to true by the eps if its in an unrecoverable error state (e.g. calibration, encoder)
     bool OP_EPS_TEMPORARY_ERROR;        // set to true by the eps if there's a temporary issue with the stepper or it's not synchronized correctly yet
+    int OP_EPS_ACTUAL_TORQUE;           // holds the current torque applied by the EPS - this is sent to openpilot in the STEER_TORQUE_SENSOR message
+    uint8_t OP_EPS_TOYOTA_STAUS_FLAG;   // holds the current toyota eps compatible status of our stepper eps - sent to op in the EPS_STATUS message
+    
 } RetropilotParams;
 
 extern RetropilotParams retropilotParams;

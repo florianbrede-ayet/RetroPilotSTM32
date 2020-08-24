@@ -16,6 +16,8 @@
 
 #define COMPILE_TIME_ASSERT(pred) ((void)sizeof(char[1 - (2 * ((int)(!(pred))))]))
 
+#define ROUND(x) ((x)>=0?(long)((x)+0.5):(long)((x)-0.5))
+
 #define MIN(a,b) \
  ({ __typeof__ (a) _a = (a); \
      __typeof__ (b) _b = (b); \

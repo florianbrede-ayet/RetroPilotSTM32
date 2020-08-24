@@ -164,7 +164,7 @@ void abrake_debug_down() {
     abrake_start(ab_actuator_poti_position-250);
 }
 
-/* called at ~ 1kHz */
+/* called at > 1kHz */
 void abrake_loop()
 {
     if (millis()-ab_last_poti_position_update>10) {
@@ -177,7 +177,7 @@ void abrake_loop()
         abrake_start((int)(((retropilotParams.BRAKE_CMD_PERCENT / 100) * (BRAKE_ACTUATOR_MAX_POT - BRAKE_ACTUATOR_MIN_POT)) + BRAKE_ACTUATOR_MIN_POT));
     }
 
-    if (!retropilotParams.ALLOW_THROTTLE && !retropilotParams.DEBUGMODE) {
+    if (!retropilotParams.ALLOW_BRAKE && !retropilotParams.DEBUGMODE) {
         abrake_stop();
         digitalWrite(BRAKE_ACTUATOR_S_IN3_PORT, BRAKE_ACTUATOR_S_IN3_PIN, LOW); //open solenoid (both in3 AND enb must be high to close the solenoid for safety)
         digitalWrite(BRAKE_ACTUATOR_M_ENB_PORT, BRAKE_ACTUATOR_M_ENB_PIN, LOW); //open solenoid (both in3 AND enb must be high to close the solenoid for safety)
