@@ -35,7 +35,7 @@ uint32_t micros(void)
         cycle_cnt = SysTick->VAL;
     } while (ms != HAL_GetTick());
     usTicks_t = usTicks;
-    return (ms * 1000) + (usTicks_t * 1000 - cycle_cnt) / usTicks_t;;
+    return (ms * 1000) + (usTicks_t * 1000 - cycle_cnt) / usTicks_t;
 }
 
 

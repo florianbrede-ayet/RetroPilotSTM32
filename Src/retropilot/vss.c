@@ -31,6 +31,8 @@
 
 float vss_ring_buffer[VSS_RINGBUFFER_SIZE];
 float vss_speed_kmh = 0;
+uint32_t vss_speed_kmh_count = 0;
+
 float vss_speed_sum = 0;
 float vss_last_valid_speed_kmh = 0;
 
@@ -52,8 +54,8 @@ volatile unsigned long vss_last_trigger_micros=0;
 
 void vss_interrupt() {
   ENTER_CRITICAL();
-  vss_sensor_revolutions++;
   vss_last_trigger_micros=micros();
+  vss_sensor_revolutions++;
   EXIT_CRITICAL();
 }
 
@@ -110,16 +112,24 @@ void vss_update_sensor_readings()
 #elif VSS_SENSOR_SMOOTHING == 2 || VSS_SENSOR_SMOOTHING == 3
     if (vss_sensor_revolutions > 0)
     {
-        vss_duration = (vss_last_trigger_micros - vss_latest_handled_trigger_micros);
         ENTER_CRITICAL();
+        vss_duration = (vss_last_trigger_micros - vss_latest_handled_trigger_micros); // rollover in ~70 minutes - however this will just one single measurement to be close to 0 (almost infinite time)
         int tmpVssSensorRevolutions = vss_sensor_revolutions;
         vss_latest_handled_trigger_micros = vss_last_trigger_micros;
         vss_sensor_revolutions -= tmpVssSensorRevolutions;
         EXIT_CRITICAL();
 
         float tmpSpeedKMH = tmpVssSensorRevolutions * (VSS_DISTANCE_PER_REVOLUTION / (vss_duration * 0.000001)) * 3.6;
-        if (tmpSpeedKMH <= VSS_MAX_SPEED) // we cap the speed we measure to max. 150km/h (max. OP speed) because sometimes at high frequencies the hall sensor might bounce and produce incorrect, way too high readings
+
+        /*if (tmpSpeedKMH <= VSS_MAX_SPEED) // we cap the speed we measure to max. 150km/h (max. OP speed) because sometimes at high frequencies the hall sensor might bounce and produce incorrect, way too high readings
             vss_speed_kmh = MAX(vss_speed_kmh, tmpSpeedKMH);
+        else 
+            vss_speed_kmh = VSS_MAX_SPEED;*/
+
+        // above code was using the "max" measured speed in an interval. however i noticed that it jerks sometimes at systick rollovers, so i opted for avg between vss updates instead
+        vss_speed_kmh = (vss_speed_kmh*vss_speed_kmh_count+MIN(tmpSpeedKMH, VSS_MAX_SPEED))/(vss_speed_kmh_count+1);
+        vss_speed_kmh_count++;  
+        
 #if VSS_SENSOR_SMOOTHING == 3
         vss_speed_kmh = MAX(MIN(vss_speed_kmh, retropilotParams.vssAvgSpeedKMH + 10), retropilotParams.vssAvgSpeedKMH - 10);
 #endif
@@ -127,8 +137,7 @@ void vss_update_sensor_readings()
     }
 #if CAR_WITHOUT_ABS_BRAKES
     else if (retropilotParams.vssAvgSpeedKMH>20 && millis()-vss_last_wheellock_check>50) { // ATTENTION: this section relies on having the sensor installed somewhere at the rear axis, where a locked axis would result in a fatal car instability
-         unsigned long lastVssDuration = 1.0f/(retropilotParams.vssAvgSpeedKMH/3.6f/VSS_DISTANCE_PER_REVOLUTION);
-         lastVssDuration *= 1000000L;
+         unsigned long lastVssDuration = (1000000L * 1.0f/(retropilotParams.vssAvgSpeedKMH/3.6f/VSS_DISTANCE_PER_REVOLUTION));
          if (micros() - vss_latest_handled_trigger_micros > lastVssDuration*3.5) { // if we've been waiting 3.5 times the expected time to trigger assume wheellock (we expect one sensor miss and decelleration, so 3+ a little margin)
             // with a distance of 0.5m/revolution this would trigger ~ 65ms after locking the wheels at 100 km/h
             vss_last_wheellock_time=millis();
@@ -139,6 +148,7 @@ void vss_update_sensor_readings()
     else if (micros() - vss_latest_handled_trigger_micros > 1000L * 1000L)
     { // 1 second without hall signal is interpreted as standstill
         vss_speed_kmh = 0;
+        vss_speed_kmh_count = 0;
         vss_last_wheellock_check=millis();
     }
 #endif
@@ -156,12 +166,14 @@ void vss_update_sensor_readings()
         else if (vss_speed_kmh == 0 && vss_last_valid_speed_kmh > 0 && millis() - vss_last_valid_speed_ts < 1000)
         {
             vss_speed_kmh = vss_last_valid_speed_kmh;
+            vss_speed_kmh_count = 1;
         }
 
         vss_speed_sum -= vss_ring_buffer[vss_ring_bufferIndex];
         vss_speed_sum += vss_speed_kmh;
         vss_ring_buffer[vss_ring_bufferIndex] = vss_speed_kmh;
         vss_speed_kmh = 0;
+        vss_speed_kmh_count = 0;
         vss_ring_bufferIndex++;
         if (vss_ring_bufferIndex >= VSS_RINGBUFFER_SIZE)
             vss_ring_bufferIndex = 0;
@@ -170,7 +182,7 @@ void vss_update_sensor_readings()
     }
 }
 
-/* called at ~ 1kHz */
+/* called at > 1kHz */
 void vss_loop()
 {
     vss_update_sensor_readings();
