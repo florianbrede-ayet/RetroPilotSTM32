@@ -231,8 +231,8 @@ PIN_OLED_SDA 	J_I2C_DISP 4	PB7
 
 
 // OPENPILOT / TOYOTA MESSAGE CONFIG 
-#define OP_MAX_GAS_COMMAND 1194.0f //the max Value which comes from OP on CAN ID 0x200 (actually 2074, it's being clipped) * this works because the PI tuning can be adapted to most "ranges"
-#define OP_MIN_GAS_COMMAND 500.0f //the min Value which comes from OP on CAN ID 0x200 (actually lower, but we clip anything below which will result in "0" throttle)
+#define OP_MAX_GAS_COMMAND 2000.0f //the max value which comes from OP on CAN ID 0x200 (actually 2074, it's being clipped)
+#define OP_MIN_GAS_COMMAND 0.0f //the min value which comes from OP on CAN ID 0x200
 
 #define OP_MIN_BRAKE_COMMAND 0.0f   // this is no braking (extracted from 0x343 GAS_CMD message in m/s)
 #define OP_MAX_BRAKE_COMMAND 2.0f // this is full braking (extracted from 0x343 GAS_CMD message in m/s)

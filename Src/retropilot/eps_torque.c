@@ -421,7 +421,7 @@ void eps_loop()
     if (retropilotParams.OP_EPS_UNRECOVERABLE_ERROR)
         retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG = 99; // steering permanently not available
     else if (retropilotParams.OP_EPS_TEMPORARY_ERROR)
-        retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG = 2;  // steering temporary not available
+        retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG = 9;  // toyotas "steering temporary not available #1"
     else if (retropilotParams.OP_ON && retropilotParams.OP_LKAS_ENABLED && retropilotParams.OP_STEER_REQUEST==1)
         retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG = 5; // active
     else

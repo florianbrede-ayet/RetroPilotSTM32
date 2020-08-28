@@ -33,12 +33,12 @@
 #define ANGLE_SYNC_STEP_FREQUENCY 100
 
 
-#define MIN_TORQUE_THRESHOLD 100.0f    // OP torque commands below this threshold will be ignored (because our eps cannot control torque as fine as the original eps)
+#define MIN_TORQUE_THRESHOLD 50.0f    // OP torque commands below this threshold will be ignored (because our eps cannot control torque as fine as the original eps)
 #define MAX_COMMANDED_TORQUE 1500.0f   // we clip any OP torque command above this our max. torque 
 
 // the currents applied to the motor for dynamic and hold. note: hold requires less current than dynamic
-#define MIN_HOLD_CURRENT 300.0f
-#define MIN_DYNAMIC_CURRENT 250.0f
+#define MIN_HOLD_CURRENT 200.0f
+#define MIN_DYNAMIC_CURRENT 50.0f
 #define MAX_HOLD_CURRENT 1100.0f
 #define MAX_DYNAMIC_CURRENT 1500.0f
 
@@ -57,8 +57,8 @@
  */
 
 #define EPS_MAX_ANGLE_ERROR 18.0f                   // the maximum allowed divergence between stepper & angle sensor before the EPS goes into an error state
-#define EPS_GEARING 1700.0f                        // the total gearing between the stepper motor and the steering shaft * microsteps (measured)
-//#define EPS_GEARING 170.0f                        // the total gearing between the stepper motor and the steering shaft * microsteps (measured)
+//#define EPS_GEARING 1700.0f                        // the total gearing between the stepper motor and the steering shaft * microsteps (measured)
+#define EPS_GEARING 170.0f                        // the total gearing between the stepper motor and the steering shaft * microsteps (measured)
 
 #define STEERING_ANGLE_INVERTED -1.0f               // set to 1.0 or -1.0 (-1.0 if the stepper angle is inverted to the actual steering angle, which should be true for most setups)
 

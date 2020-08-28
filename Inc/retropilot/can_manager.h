@@ -47,6 +47,8 @@
   extern unsigned long cm_last_recv_steer_cmd;
   extern unsigned long cm_last_recv_steer_angle;
 
+  extern unsigned long cm_last_recv_panda_safety;
+
   extern unsigned long cm_last_recv_module_error_flag; // updated whenever an ecu sends a heartbeat with a fault state
 
   void cm_setup();

@@ -154,6 +154,7 @@ void retropilot_loop_safety() {
 
   retropilotParams.OP_ERROR_CAN = ((!retropilotParams.DEBUGMODE && 
                                     (
+                                      millis()-cm_last_recv_panda_safety > 100 ||
                                       millis()-cm_last_recv > 100 || 
                                       millis()-cm_last_recv_module_inputs > 100 || 
                                       millis()-cm_last_recv_module_vss > 100 || 
