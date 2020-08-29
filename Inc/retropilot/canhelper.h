@@ -86,6 +86,8 @@ void canhelper_put_be_uint(uint8_t *buffer, uint32_t value, float paramOffset, f
 void canhelper_put_be_float(uint8_t *buffer, float value, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);
 void canhelper_put_be_float_signed(uint8_t *buffer, float value, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size);
 
+uint8_t canhelper_crc_checksum(uint8_t *dat, int len, const uint8_t poly);
+
 uint8_t canhelper_calculate_toyota_checksum(uint8_t *buffer, uint16_t canTx, uint8_t len);
 void canhelper_put_toyota_checksum(uint8_t *buffer, uint16_t canTx, uint8_t len);
 bool canhelper_verify_toyota_checksum(uint8_t *buffer, uint16_t canTx, uint8_t len);

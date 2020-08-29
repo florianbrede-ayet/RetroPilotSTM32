@@ -27,6 +27,7 @@
 */
 
 #include "retropilot/canhelper.h"
+#include "logger.h"
 
 
 uint32_t canhelper_parse_be_uint(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size) {
@@ -153,104 +154,24 @@ void canhelper_put_be_float_signed(uint8_t *buffer, float value, float paramOffs
 }
 
 
-/*
-uint32_t CanHelper::parseParameterLittleEndianUnsignedLong(uint8_t *buffer, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
-    uint32_t returnValue=0;
 
-    if (size>32) {
-        //Serial.print("CANHelper Error: size is "); Serial.print(size); Serial.println(" but maximum supported size is 32 bit!");
-        return 0;
+
+uint8_t canhelper_crc_checksum(uint8_t *dat, int len, const uint8_t poly) {
+  uint8_t crc = 0xFF;
+  int i, j;
+  for (i = len - 1; i >= 0; i--) {
+    crc ^= dat[i];
+    for (j = 0; j < 8; j++) {
+      if ((crc & 0x80U) != 0U) {
+        crc = (uint8_t)((crc << 1) ^ poly);
+      }
+      else {
+        crc <<= 1;
+      }
     }
-    unsigned char i;
-
-    leastSignifcantBit = leastSignifcantBit+size-1;
-
-    int16_t currentByte = leastSignifcantBit/8-(size-1)/8;
-    int16_t currentBit = leastSignifcantBit%8-(size-1);
-    currentBit=ABS(currentBit)%8;
-
-    unsigned char bit;
-    for (i = 0; i<size; i++) {
-        bit = buffer[currentByte] >> (currentBit) & 0b00000001;
-        returnValue |= bit << i;
-        currentBit++;
-        if (currentBit>7) {
-            currentBit=0;
-            currentByte++;
-        }
-    }
-    return returnValue;
+  }
+  return crc;
 }
-
-int32_t CanHelper::parseParameterLittleEndianLong(uint8_t *buffer, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
-    uint32_t rawValue = parseParameterLittleEndianUnsignedLong(buffer, 0, 1, leastSignifcantBit, size);
-    int32_t value = rawValue*paramScale+paramOffset;
-    return value;
-}
-float CanHelper::parseParameterLittleEndianFloat(uint8_t *buffer, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
-    uint32_t rawValue = parseParameterLittleEndianUnsignedLong(buffer, 0, 1, leastSignifcantBit, size);
-    float value = rawValue*paramScale+paramOffset;
-    return value;
-}
-uint8_t CanHelper::parseParameterLittleEndianByte(uint8_t *buffer, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
-    uint32_t rawValue = parseParameterLittleEndianUnsignedLong(buffer, 0, 1, leastSignifcantBit, size);
-    uint8_t value = rawValue*paramScale+paramOffset;
-    return value;
-}
-int16_t CanHelper::parseParameterLittleEndianInt(uint8_t *buffer, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
-    uint32_t rawValue = parseParameterLittleEndianUnsignedLong(buffer, 0, 1, leastSignifcantBit, size);
-    int16_t value = rawValue*paramScale+paramOffset;
-    return value;
-}
-
-
-void CanHelper::putParameterLittleEndianUnsignedLong(uint8_t *buffer, uint32_t value, uint8_t leastSignifcantBit, uint8_t size) {
-    if (size>32) {
-        //Serial.print("CANHelper Error: size is "); Serial.print(size); Serial.println(" but maximum supported size is 32 bit!");
-        return;
-    }
-    unsigned char i;
-
-    leastSignifcantBit = leastSignifcantBit+size-1;
-
-    int16_t currentByte = leastSignifcantBit/8-(size-1)/8;
-    int16_t currentBit = leastSignifcantBit%8-(size-1);
-    currentBit=ABS(currentBit)%8;
-
-    unsigned char bit;
-    for (i = 0; i<size; i++) {
-        bit = value >> (i) & 0b00000001;
-        buffer[currentByte] |= bit << currentBit;
-        currentBit++;
-        if (currentBit>7) {
-            currentBit=0;
-            currentByte++;
-        }
-    }
-}
-
-void CanHelper::putParameterLittleEndian(uint8_t *buffer, uint8_t value, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
-    uint32_t adjustedValue = (value-paramOffset)/paramScale;
-    return putParameterLittleEndianUnsignedLong(buffer, adjustedValue, leastSignifcantBit, size);
-}
-void CanHelper::putParameterLittleEndian(uint8_t *buffer, int16_t value, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
-    uint32_t adjustedValue = (value-paramOffset)/paramScale;
-    return putParameterLittleEndianUnsignedLong(buffer, adjustedValue, leastSignifcantBit, size);
-}
-void CanHelper::putParameterLittleEndian(uint8_t *buffer, int32_t value, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
-    uint32_t adjustedValue = (value-paramOffset)/paramScale;
-    return putParameterLittleEndianUnsignedLong(buffer, adjustedValue, leastSignifcantBit, size);
-}
-void CanHelper::putParameterLittleEndian(uint8_t *buffer, uint32_t value, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
-    uint32_t adjustedValue = (value-paramOffset)/paramScale;
-    return putParameterLittleEndianUnsignedLong(buffer, adjustedValue, leastSignifcantBit, size);
-}
-void CanHelper::putParameterLittleEndian(uint8_t *buffer, float value, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
-    uint32_t adjustedValue = (value-paramOffset)/paramScale;
-    return putParameterLittleEndianUnsignedLong(buffer, adjustedValue, leastSignifcantBit, size);
-}
-*/
-
 
 uint8_t canhelper_calculate_toyota_checksum(uint8_t *buffer, uint16_t canTx, uint8_t len) {
   uint8_t checksum = 0;
@@ -277,32 +198,3 @@ bool canhelper_verify_toyota_checksum(uint8_t *buffer, uint16_t canTx, uint8_t l
 void canhelper_reset_buffer(uint8_t *buffer) {
     buffer[0]=buffer[1]=buffer[2]=buffer[3]=buffer[4]=buffer[5]=buffer[6]=buffer[7]=0;
 }
-
-
-/* 
-void CanHelper::printBitmask(uint8_t *buffer) {
-    int16_t i, by, bi;
-    //Serial.println("printBitmask:");
-    for (by=7; by>=0; by--) {
-        //Serial.println("");
-        for (bi = 0; bi<8; bi++) {
-            i = by*8+bi;
-            uint8_t bit = (buffer[7 - ((i+0) / 8)] >> (7 - ((i+0)%8))) & 0b00000001;
-            //Serial.print(bit); Serial.print(" ");
-        }
-    }
-    //Serial.println("");
-}
-
-
-
-
-void CanHelper::bitRepresentation(uint32_t value, int8_t length) {
-    for(uint8_t mask = 1<<(length-1); mask; mask >>= 1){
-        if(mask  & value)
-            {}//Serial.print('1');
-        else
-            {}//Serial.print('0');
-    }
-    //Serial.println("");
-} */

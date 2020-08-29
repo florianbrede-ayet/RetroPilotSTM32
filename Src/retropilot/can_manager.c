@@ -60,6 +60,7 @@ unsigned long cm_last_recv_steer_cmd=0L;
 unsigned long cm_last_recv_steer_angle=0L;
 
 unsigned long cm_last_recv_panda_safety=0L;
+unsigned long cm_last_recv_pedal_safety=0L;
 
 unsigned long cm_last_recv_module_error_flag = 0; // updated whenever an ecu sends a heartbeat with a fault state
 
@@ -300,38 +301,44 @@ void cm_loop_recv() {
 
     switch (rxMsg.id) {
       case 0x200: { // COMMA PEDAL GAS COMMAND from OP
-        float GAS_CMD = (rxMsg.buf[0] << 8 | rxMsg.buf[1] << 0); 
+        if (canhelper_crc_checksum(rxMsg.buf, 6 - 1, 0xD5) == rxMsg.buf[5]) {
+          float GAS_CMD = (rxMsg.buf[0] << 8 | rxMsg.buf[1] << 0); 
 
-        // scale GAS_CMD into GAS_CMD_PERCENT
-        if (GAS_CMD >= OP_MIN_GAS_COMMAND) {
-          GAS_CMD = (GAS_CMD>OP_MAX_GAS_COMMAND ? OP_MAX_GAS_COMMAND : GAS_CMD);
+          // scale GAS_CMD into GAS_CMD_PERCENT
+          if (GAS_CMD >= OP_MIN_GAS_COMMAND) {
+            GAS_CMD = (GAS_CMD>OP_MAX_GAS_COMMAND ? OP_MAX_GAS_COMMAND : GAS_CMD);
+          }
+          else {
+            GAS_CMD = OP_MIN_GAS_COMMAND;
+          }
+          retropilotParams.GAS_CMD_PERCENT = ((100/(OP_MAX_GAS_COMMAND - OP_MIN_GAS_COMMAND)) * (GAS_CMD - OP_MIN_GAS_COMMAND));
+
+          cm_last_recv_pedal_safety=millis();
+
         }
-        else {
-          GAS_CMD = OP_MIN_GAS_COMMAND;
-        }
-        retropilotParams.GAS_CMD_PERCENT = ((100/(OP_MAX_GAS_COMMAND - OP_MIN_GAS_COMMAND)) * (GAS_CMD - OP_MIN_GAS_COMMAND));
         break; 
       }
       case 0x343: { // standard toyota ACC_CONTROL (we want to extract cancel_req and the brake requests from ACCEL_CMD here)
+        if (canhelper_verify_toyota_checksum(rxMsg.buf, 0x343, 7)) {
+          #if MODULE_INPUTS // only parsed and handled by the inputs module - the other modules get OP_ON from the inputs module (safety: if they don't get valid messages from inputs they will disengage automatically)
+          uint8_t cancel_req = canhelper_parse_be_byte(rxMsg.buf, 0, 1, 24, 1);
+          if (cancel_req==1) {
+            retropilotParams.OP_ON=false;
+            retropilotParams.OP_LKAS_ENABLED=false;
+          }
+          #endif
 
-        #if MODULE_INPUTS // only parsed and handled by the inputs module - the other modules get OP_ON from the inputs module (safety: if they don't get valid messages from inputs they will disengage automatically)
-        uint8_t cancel_req = canhelper_parse_be_byte(rxMsg.buf, 0, 1, 24, 1);
-        if (cancel_req==1) {
-          retropilotParams.OP_ON=false;
-          retropilotParams.OP_LKAS_ENABLED=false;
+          cm_last_recv_panda_safety=millis();
+
+          float BRAKE_CMD    = -canhelper_parse_be_float_signed(rxMsg.buf, 0, 0.001f, 7, 16);        
+          if (BRAKE_CMD > OP_MIN_BRAKE_COMMAND) {
+            BRAKE_CMD = (BRAKE_CMD>OP_MAX_BRAKE_COMMAND ? OP_MAX_BRAKE_COMMAND : BRAKE_CMD);
+          }
+          else 
+            BRAKE_CMD = OP_MIN_BRAKE_COMMAND;
+
+          retropilotParams.BRAKE_CMD_PERCENT = ((100.0f/(OP_MAX_BRAKE_COMMAND - OP_MIN_BRAKE_COMMAND)) * (BRAKE_CMD - OP_MIN_BRAKE_COMMAND));
         }
-        #endif
-
-        cm_last_recv_panda_safety=millis();
-
-        float BRAKE_CMD    = -canhelper_parse_be_float_signed(rxMsg.buf, 0, 0.001f, 7, 16);        
-        if (BRAKE_CMD > OP_MIN_BRAKE_COMMAND) {
-          BRAKE_CMD = (BRAKE_CMD>OP_MAX_BRAKE_COMMAND ? OP_MAX_BRAKE_COMMAND : BRAKE_CMD);
-        }
-        else 
-          BRAKE_CMD = OP_MIN_BRAKE_COMMAND;
-
-        retropilotParams.BRAKE_CMD_PERCENT = ((100.0f/(OP_MAX_BRAKE_COMMAND - OP_MIN_BRAKE_COMMAND)) * (BRAKE_CMD - OP_MIN_BRAKE_COMMAND));
         break;
       }
 
