@@ -119,7 +119,7 @@ void athrottle_update() {
 
   if (at_actuator_direction==0) return;
 
-  if (ABS(at_actuator_poti_position - at_actuator_target_position) < THROTTLE_ACTUATOR_ALLOWED_PERM_ERROR)
+  if (!retropilotParams.ALLOW_THROTTLE || ABS(at_actuator_poti_position - at_actuator_target_position) < THROTTLE_ACTUATOR_ALLOWED_PERM_ERROR)
       return athrottle_stop();
 
 

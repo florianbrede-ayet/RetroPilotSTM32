@@ -86,7 +86,7 @@ void abrake_start(int mTargetPosition) {
   if (mTargetPosition>BRAKE_ACTUATOR_MAX_POT) mTargetPosition=BRAKE_ACTUATOR_MAX_POT;
 
   // within BRAKE_ACTUATOR_ALLOWED_PERM_ERROR, stop this actuation sequence
-  if (ABS(ab_actuator_poti_position - mTargetPosition) < BRAKE_ACTUATOR_ALLOWED_PERM_ERROR) {
+  if (!retropilotParams.ALLOW_BRAKE || ABS(ab_actuator_poti_position - mTargetPosition) < BRAKE_ACTUATOR_ALLOWED_PERM_ERROR) {
     ab_actuator_target_position=mTargetPosition; 
     return abrake_stop();
   }
