@@ -46,6 +46,7 @@
 
   extern unsigned long cm_last_recv_steer_cmd;
   extern unsigned long cm_last_recv_steer_angle;
+  extern unsigned long cm_last_recv_ipas_steer_cmd;
 
   extern unsigned long cm_last_recv_panda_safety;
   extern unsigned long cm_last_recv_pedal_safety;

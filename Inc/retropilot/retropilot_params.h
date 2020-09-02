@@ -30,6 +30,8 @@ typedef struct {
     // these are extracted from STEERING_LKA openpilot is streaming
     uint8_t OP_STEER_REQUEST;
     float   OP_COMMANDED_TORQUE;
+    // this is extracted from our modified STEERING_IPAS message
+    float   OP_COMMANDED_TARGET_ANGLE;
     
     // "OP_" data shared from the inputs module to other ecus through the retropilot status can message
     bool OP_ON;

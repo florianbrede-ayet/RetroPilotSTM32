@@ -58,6 +58,7 @@ unsigned long cm_last_recv_module_eps=0L;
 
 unsigned long cm_last_recv_steer_cmd=0L;
 unsigned long cm_last_recv_steer_angle=0L;
+unsigned long cm_last_recv_ipas_steer_cmd=0L;
 
 unsigned long cm_last_recv_panda_safety=0L;
 unsigned long cm_last_recv_pedal_safety=0L;
@@ -429,6 +430,14 @@ void cm_loop_recv() {
           cm_last_recv_steer_cmd = millis();
           retropilotParams.OP_STEER_REQUEST    = canhelper_parse_be_byte(rxMsg.buf, 0, 1, 0, 1);
           retropilotParams.OP_COMMANDED_TORQUE = canhelper_parse_be_int_signed(rxMsg.buf, 0, 1, 15, 16);
+        }
+        break;
+      }
+
+      case 0x266: { // STEERING_IPAS (we modified this message for retropilot to hold the desired steering angle)
+        if (canhelper_verify_toyota_checksum(rxMsg.buf, 0x266, 7)) {
+          cm_last_recv_ipas_steer_cmd = millis(); // hint: we do not rely on this message. it's optional and improves the performance of the torque driven eps implementation
+          retropilotParams.OP_COMMANDED_TARGET_ANGLE = canhelper_parse_be_float_signed(rxMsg.buf, 0, 0.1f, 3, 12);
         }
         break;
       }

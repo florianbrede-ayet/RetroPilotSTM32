@@ -112,8 +112,8 @@ void debug_state() {
     retropilotParams.OP_ON,
     retropilotParams.ALLOW_STEERING, retropilotParams.ALLOW_BRAKE, retropilotParams.ALLOW_STEERING,
     (int)retropilotParams.OP_COMMANDED_TORQUE, (int)retropilotParams.BRAKE_CMD_PERCENT, (int)retropilotParams.GAS_CMD_PERCENT,
-    adcRead(THROTTLE_ACTUATOR_POTI_PIN),
     adcRead(BRAKE_ACTUATOR_POTI_PIN),
+    adcRead(THROTTLE_ACTUATOR_POTI_PIN),
     (int)(retropilotParams.currentSteeringAngle*100),
     (int)(eps_current_stepper_angle/EPS_GEARING*100),
     retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG

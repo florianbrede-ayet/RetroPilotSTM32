@@ -37,10 +37,12 @@
 #define MAX_COMMANDED_TORQUE 1500.0f   // we clip any OP torque command above this our max. torque 
 
 // the currents applied to the motor for dynamic and hold. note: hold requires less current than dynamic
-#define MIN_HOLD_CURRENT 200.0f
+#define MIN_HOLD_CURRENT 50.0f
 #define MIN_DYNAMIC_CURRENT 50.0f
-#define MAX_HOLD_CURRENT 1100.0f
-#define MAX_DYNAMIC_CURRENT 1500.0f
+#define MAX_HOLD_CURRENT 200.0f
+#define MAX_DYNAMIC_CURRENT 1000.0f   // 1500ma - we limit this to 1000 max because anything around 900+ constantly might require cooling of the driver
+
+#define TOYOTA_TORQUE_TO_CURRENT_FACTOR 1.0f // we scale the toyota torque by this factor and convert it to stepper current
 
 #define VSS_DEPENDANT_MIN_TORQUE_PERCENT 30.0f      // this is the minimum amount (%) of torque applied (at standstill))
 #define VSS_DEPENDANT_MAX_TORQUE_SPEED_KMH 100.0f   // the maximum torque is applied from 100km/h+
@@ -57,8 +59,11 @@
  */
 
 #define EPS_MAX_ANGLE_ERROR 18.0f                   // the maximum allowed divergence between stepper & angle sensor before the EPS goes into an error state
-//#define EPS_GEARING 1700.0f                        // the total gearing between the stepper motor and the steering shaft * microsteps (measured)
-#define EPS_GEARING 170.0f                        // the total gearing between the stepper motor and the steering shaft * microsteps (measured)
+#define EPS_GEARING 41.0f                        // test gearing for bigger actuation ranges
+//#define EPS_GEARING 17.0f                        // the total gearing between the stepper motor and the steering shaft (measured)
+
+#define EPS_STEPPER_RPM   EPS_GEARING/6.0f*20.0f    // rpm = 0 is torque driven positional mode, otherwise "torque driven, positional, speed limited"
+                                                    // this results in 20 deg movement per second
 
 #define STEERING_ANGLE_INVERTED -1.0f               // set to 1.0 or -1.0 (-1.0 if the stepper angle is inverted to the actual steering angle, which should be true for most setups)
 

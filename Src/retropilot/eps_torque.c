@@ -30,6 +30,7 @@
 #include "retropilot/retropilot_params.h"
 #include "retropilot/eps_torque.h"
 #include "retropilot/easy_transfer.h"
+#include "retropilot/can_manager.h"
 #include "uart.h"
 #include "logger.h"
 
@@ -96,6 +97,7 @@ typedef struct SERIAL_DATA_STRUCTURE{
     uint8_t statusMask;
     int32_t currentAngle;
     int32_t targetAngle;
+	uint8_t rpm;
     uint16_t dynamicCurrent;
     int16_t holdCurrent;
 	uint8_t counter;
@@ -125,12 +127,12 @@ void eps_receive() {
             logger_e("received loopback eps usart3 package - check external serial connection!\n");
         }
         else {
-             /* logger("CNT: %d  eS: %d  eC: %d  eE: %d  eM: %d  EN: %d  cAng: %d  tAng: %d  currD: %d  currH: %d\n", 
+                /* logger("CNT: %d  eS: %d  eC: %d  eE: %d  eM: %d  EN: %d  cAng: %d  tAng: %d  currD: %d  currH: %d  rpm: %d\n", 
                 eps_serial_data_struct.counter, eps_serial_data_struct.statusMask >> 0 & 1, eps_serial_data_struct.statusMask >> 1 & 1,
                 eps_serial_data_struct.statusMask >> 2 & 1, eps_serial_data_struct.statusMask >> 3 & 1, eps_serial_data_struct.statusMask >> 4 & 1,
-                eps_serial_data_struct.currentAngle, eps_serial_data_struct.targetAngle, eps_serial_data_struct.dynamicCurrent, eps_serial_data_struct.holdCurrent);  */
+                eps_serial_data_struct.currentAngle, eps_serial_data_struct.targetAngle, eps_serial_data_struct.dynamicCurrent, eps_serial_data_struct.holdCurrent, eps_serial_data_struct.rpm);  */
 
-            eps_current_stepper_angle = eps_serial_data_struct.currentAngle;  
+            eps_current_stepper_angle = ((float)eps_serial_data_struct.currentAngle)/10.0f;  
             eps_received_serial_message = true;
       }
     }
@@ -157,28 +159,6 @@ void eps_receive() {
             retropilotParams.OP_EPS_UNRECOVERABLE_ERROR = true;
             if (eps_stepper_status!=6) eps_stepper_status=4;
         }
-
-
-        // calculate the current EPS output torque to send to openpilot
-        if ((eps_serial_data_struct.statusMask >> 4 & 1) == 1) {
-            if (ABS(eps_serial_data_struct.currentAngle-eps_serial_data_struct.targetAngle)>0.5f*EPS_GEARING) {
-                if (eps_serial_data_struct.currentAngle-eps_serial_data_struct.targetAngle>0)
-                    retropilotParams.OP_EPS_ACTUAL_TORQUE=STEERING_ANGLE_INVERTED*-eps_serial_data_struct.dynamicCurrent;
-                else
-                    retropilotParams.OP_EPS_ACTUAL_TORQUE=STEERING_ANGLE_INVERTED*eps_serial_data_struct.dynamicCurrent;
-            }
-            else {
-                if (retropilotParams.currentSteeringAngle>0.5f)
-                    retropilotParams.OP_EPS_ACTUAL_TORQUE=eps_serial_data_struct.holdCurrent;
-                else if (retropilotParams.currentSteeringAngle<-0.5f)
-                    retropilotParams.OP_EPS_ACTUAL_TORQUE=-eps_serial_data_struct.holdCurrent;
-                else 
-                    retropilotParams.OP_EPS_ACTUAL_TORQUE=0;
-            }
-        }
-        else
-            retropilotParams.OP_EPS_ACTUAL_TORQUE=0;
-
     }
     else {
         if (millis()-eps_last_serial_message_received>120) {
@@ -202,12 +182,14 @@ void eps_receive() {
 void eps_calculate_outputs_from_torque() {
     if (eps_received_serial_message || millis()-eps_last_serial_write>=MIN_CALCULATION_FREQ) {
 
-        float commandedTorque = STEERING_ANGLE_INVERTED*retropilotParams.OP_COMMANDED_TORQUE;   // must be inverted depending on gearing and stepper wiring
+        float commandedTorque = STEERING_ANGLE_INVERTED*retropilotParams.OP_COMMANDED_TORQUE*TOYOTA_TORQUE_TO_CURRENT_FACTOR;   // must be inverted depending on gearing and stepper wiring
         eps_calculated_stepper_target_angle=eps_current_stepper_angle;
         
         eps_calculated_stepper_stop = 1;
         eps_calculated_stepper_hold_current = MIN_HOLD_CURRENT;
         eps_calculated_stepper_dynamic_current = MIN_DYNAMIC_CURRENT;
+        retropilotParams.OP_EPS_ACTUAL_TORQUE=0;
+
 
         if (commandedTorque>MIN_TORQUE_THRESHOLD) {
             eps_calculated_stepper_dynamic_current = MAX(MIN_DYNAMIC_CURRENT, MIN(MAX_DYNAMIC_CURRENT, MIN_DYNAMIC_CURRENT+(ABS(commandedTorque)-MIN_TORQUE_THRESHOLD)/MAX_COMMANDED_TORQUE*(MAX_DYNAMIC_CURRENT-MIN_DYNAMIC_CURRENT)));
@@ -238,9 +220,30 @@ void eps_calculate_outputs_from_torque() {
                 eps_calculated_stepper_dynamic_current = MIN(eps_calculated_stepper_dynamic_current, MAX(0.0f, eps_calculated_stepper_dynamic_current/100*(100-10*(STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle-steeringAngleSoftLimit))));
             
             eps_calculated_stepper_stop = 0;
-            eps_calculated_stepper_target_angle = eps_current_stepper_angle + EPS_GEARING * 10; // 10° of steering angle is our new target position offset - only restricted for safety (maximum error on connection failure). should be significant enough to have the stepper PID detect a worthy position error
+
+            bool used_ipas_target_angle=false;
+            
+            /* if (millis()-cm_last_recv_ipas_steer_cmd<100) {
+                logger("R IPAS ANGLE: %d   CURRENT ANGLE: %d   TORQUE: %d\n", (int)(retropilotParams.OP_COMMANDED_TARGET_ANGLE*10), (int)(retropilotParams.currentSteeringAngle*10), (int)retropilotParams.OP_COMMANDED_TORQUE);
+                 if (STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle>=STEERING_ANGLE_INVERTED*retropilotParams.OP_COMMANDED_TARGET_ANGLE) {
+                    // we limit the new target angle to max 4° from the current steering angle
+                    eps_calculated_stepper_target_angle = eps_calculated_stepper_target_angle+MIN(EPS_GEARING * 4.0f, ABS(STEERING_ANGLE_INVERTED*retropilotParams.OP_COMMANDED_TARGET_ANGLE - STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle)*EPS_GEARING);
+                    used_ipas_target_angle=true;
+                    //logger("IPAS ANGLE: %3.d   TARGET ANGLE: %3.d\n", (int)(retropilotParams.OP_COMMANDED_TARGET_ANGLE*10), (int)(STEERING_ANGLE_INVERTED*eps_calculated_stepper_target_angle / EPS_GEARING*10));
+                } 
+            } */
+
+            // if we don't get the ipas target angle or if it's outdated / out of sync "direction" - we fall back to the defaults
+            if (!used_ipas_target_angle)
+                eps_calculated_stepper_target_angle = eps_current_stepper_angle + EPS_GEARING * 10.0f; // 1° of steering angle is our new target position offset - only restricted for safety (maximum error on connection failure). should be significant enough to have the stepper PID detect a worthy position error
+            
+            /* if (!used_ipas_target_angle)
+                logger("NO IPAS ANGLE!\n");                 */
             
             eps_debug_torque_percent = eps_calculated_stepper_dynamic_current*100.0f/MAX_DYNAMIC_CURRENT;
+            
+            // calculate the current EPS output torque to send to openpilot
+            retropilotParams.OP_EPS_ACTUAL_TORQUE=STEERING_ANGLE_INVERTED*eps_serial_data_struct.dynamicCurrent/TOYOTA_TORQUE_TO_CURRENT_FACTOR;
         }
         else if (commandedTorque<-MIN_TORQUE_THRESHOLD) {
             eps_calculated_stepper_dynamic_current = MAX(MIN_DYNAMIC_CURRENT, MIN(MAX_DYNAMIC_CURRENT, MIN_DYNAMIC_CURRENT+(ABS(commandedTorque)-MIN_TORQUE_THRESHOLD)/MAX_COMMANDED_TORQUE*(MAX_DYNAMIC_CURRENT-MIN_DYNAMIC_CURRENT)));
@@ -272,9 +275,29 @@ void eps_calculate_outputs_from_torque() {
                 eps_calculated_stepper_dynamic_current = MIN(eps_calculated_stepper_dynamic_current, MAX(0.0f, eps_calculated_stepper_dynamic_current/100.0f*(100.0f-10.0f*(-STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle-steeringAngleSoftLimit))));
 
             eps_calculated_stepper_stop = 0;
-            eps_calculated_stepper_target_angle = eps_current_stepper_angle - EPS_GEARING * 10; // 10° of steering angle is our new target position offset - only restricted for safety (maximum error on connection failure). should be significant enough to have the stepper PID detect a worthy position error
+
+            bool used_ipas_target_angle=false;
+            
+            /* if (millis()-cm_last_recv_ipas_steer_cmd<100) {
+                logger("L IPAS ANGLE: %d   CURRENT ANGLE: %d   TORQUE: %d\n", (int)(retropilotParams.OP_COMMANDED_TARGET_ANGLE*10), (int)(retropilotParams.currentSteeringAngle*10), (int)retropilotParams.OP_COMMANDED_TORQUE);
+                 if (STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle<=STEERING_ANGLE_INVERTED*retropilotParams.OP_COMMANDED_TARGET_ANGLE) {
+                    // we limit the new target angle to max 4° from the current steering angle
+                    eps_calculated_stepper_target_angle = eps_calculated_stepper_target_angle-MIN(EPS_GEARING * 4.0f, ABS(STEERING_ANGLE_INVERTED*retropilotParams.currentSteeringAngle - STEERING_ANGLE_INVERTED*retropilotParams.OP_COMMANDED_TARGET_ANGLE)*EPS_GEARING);
+                    used_ipas_target_angle=true;
+                    //logger("IPAS ANGLE: %3.d   TARGET ANGLE: %3.d\n", (int)(retropilotParams.OP_COMMANDED_TARGET_ANGLE*10), (int)(STEERING_ANGLE_INVERTED*eps_calculated_stepper_target_angle / EPS_GEARING*10));
+                } 
+            } */
+
+            // if we don't get the ipas target angle or if it's outdated / out of sync "direction" - we fall back to the defaults
+            if (!used_ipas_target_angle)
+                eps_calculated_stepper_target_angle = eps_current_stepper_angle - EPS_GEARING * 10.0f; // 1° of steering angle is our new target position offset - only restricted for safety (maximum error on connection failure). should be significant enough to have the stepper PID detect a worthy position error
+            /* if (!used_ipas_target_angle)
+                logger("NO IPAS ANGLE!\n"); */
 
             eps_debug_torque_percent = -eps_calculated_stepper_dynamic_current*100.0f/MAX_DYNAMIC_CURRENT;
+
+            // calculate the current EPS output torque to send to openpilot
+            retropilotParams.OP_EPS_ACTUAL_TORQUE=STEERING_ANGLE_INVERTED*(-eps_serial_data_struct.dynamicCurrent)/TOYOTA_TORQUE_TO_CURRENT_FACTOR;
         }
         
     }
@@ -294,17 +317,31 @@ void eps_send() {
     		eps_serial_data_struct.statusMask |= 1 << 0; // enable
             eps_serial_data_struct.statusMask |= 0 << 1; // stop
         }
+
+        eps_serial_data_struct.rpm=(uint8_t)ROUND(EPS_STEPPER_RPM); // rpm = 0 is torque driven positional mode, otherwise "torque driven, positional, speed limited"
+
 		eps_serial_data_struct.currentAngle = INT32_MAX;   // unused
-		eps_serial_data_struct.targetAngle = eps_calculated_stepper_target_angle;
+		eps_serial_data_struct.targetAngle = (int)(eps_calculated_stepper_target_angle*10.0f);
 		eps_serial_data_struct.dynamicCurrent = eps_calculated_stepper_dynamic_current;
 		eps_serial_data_struct.holdCurrent = eps_calculated_stepper_hold_current;
 
+        /* if (millis()>3000) {
+            eps_serial_data_struct.statusMask=0;
+    		eps_serial_data_struct.statusMask |= 1 << 0; // enable
+            eps_serial_data_struct.statusMask |= 0 << 1; // stop
+            eps_serial_data_struct.currentAngle = INT32_MAX;   // unused
+            eps_serial_data_struct.targetAngle = 170*360;
+            eps_serial_data_struct.dynamicCurrent = 900;
+            eps_serial_data_struct.holdCurrent = 30;
+            eps_serial_data_struct.rpm=137; // rpm = 0 is torque driven positional mode, otherwise "torque driven, positional, speed limited"
+        } */
+
         eps_serial_data_struct.counter = ++msg_counter;
 
-         /* logger("OUT:  stat: %d  tAng: %d  currD: %d  currH: %d\n",  eps_serial_data_struct.statusMask,
-                (int32_t)eps_serial_data_struct.targetAngle, (int)eps_serial_data_struct.dynamicCurrent, eps_serial_data_struct.holdCurrent ); */
+           /* logger("OUT:  stat: %d  tAng: %d currD: %d  currH: %d  rpm: %d\n",  eps_serial_data_struct.statusMask,
+                (int32_t)eps_serial_data_struct.targetAngle, (int)eps_serial_data_struct.dynamicCurrent, eps_serial_data_struct.holdCurrent, eps_serial_data_struct.rpm);   */
 
-		eps_serial_data_struct.checksum = eps_serial_data_struct.statusMask+eps_serial_data_struct.currentAngle+eps_serial_data_struct.targetAngle+eps_serial_data_struct.dynamicCurrent+eps_serial_data_struct.holdCurrent+eps_serial_data_struct.counter;
+		eps_serial_data_struct.checksum = eps_serial_data_struct.statusMask+eps_serial_data_struct.currentAngle+eps_serial_data_struct.targetAngle+eps_serial_data_struct.dynamicCurrent+eps_serial_data_struct.holdCurrent+eps_serial_data_struct.counter+eps_serial_data_struct.rpm;
 		et_send_data(eps_serial_data_struct);
 	}
 }

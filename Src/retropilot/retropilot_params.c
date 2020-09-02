@@ -27,6 +27,7 @@ RetropilotParams retropilotParams = {
     // these are extracted from STEERING_LKA openpilot is streaming
     .OP_STEER_REQUEST    = 0,
     .OP_COMMANDED_TORQUE = 0,
+    .OP_COMMANDED_TARGET_ANGLE = 0,
     
     // "OP_" data shared from the inputs module to other ecus through the retropilot status can message
     .OP_ON = false,
