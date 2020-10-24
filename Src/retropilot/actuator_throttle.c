@@ -157,11 +157,11 @@ void athrottle_update() {
 
 void athrottle_debug_up() {
   if (retropilotParams.DEBUGMODE)
-    athrottle_start(at_actuator_poti_position+250);
+    athrottle_start(at_actuator_target_position+250);
 }
 void athrottle_debug_down() {
   if (retropilotParams.DEBUGMODE)
-    athrottle_start(at_actuator_poti_position-250);
+    athrottle_start(at_actuator_target_position-250);
 }
 
 

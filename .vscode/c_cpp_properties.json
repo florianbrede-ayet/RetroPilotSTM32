@@ -83,7 +83,7 @@
                 ]
             },
             "defines": [
-                "PLATFORMIO=40304",
+                "PLATFORMIO=50001",
                 "STM32F405xx",
                 "STM32F4xx",
                 "HSE_VALUE=8000000",

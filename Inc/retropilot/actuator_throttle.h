@@ -36,10 +36,6 @@
 #define THROTTLE_ACTUATOR_MAX_POT 2300 //measured at actuators highest position (ot the maximum actuation length we want to allow)
 #define THROTTLE_ACTUATOR_POTI_REFERENCE_RESISTOR 1000 // we measure the resistance of the potentiometer - this is the reference resistor used to cover the ~2.4k ohms potentiometer range
 
-#define THROTTLE_ACTUATOR_SLOW_MOVE_ERROR_THRESHOLD 100 // this defines the error threshold from which on we will use the below defined PWM to move the actuator smoother towards the setpoint
-#define THROTTLE_ACTUATOR_SLOW_MOVE_PWM_PULL 225   // when <100 ohms short of setpoint, use these arduino PWM for the driver (pull needs more force!)
-#define THROTTLE_ACTUATOR_SLOW_MOVE_PWM_LOOSEN 127 // when <100 ohms above setpoint, use these arduino PWM for the driver
-
 #define THROTTLE_ACTUATOR_RAMP_UP_MS 500 // the "pull" time for which duty cycling is active
 #define THROTTLE_ACTUATOR_RAMP_DOWN_MS 400 // the "loosen" time for which duty cycling is active
 #define THROTTLE_ACTUATOR_DUTY_CYCLE_LENGTH_MS 20 // each complete cycle is 20 ms

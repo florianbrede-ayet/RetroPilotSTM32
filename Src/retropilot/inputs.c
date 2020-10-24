@@ -58,6 +58,7 @@ uint8_t ccLastSetSpeed = 90;
 
 unsigned long lastClutchPressedTime = 0L;
 unsigned long lastBrakePressedTime = 0L;
+unsigned long lastGasPressedTime = 0L;
 
 
 uint8_t debug_actuator = 0;
@@ -99,10 +100,20 @@ void inputs_loop() {
             lastBrakePressedTime = millis();
         }
         retropilotParams.OP_BRAKE_PRESSED = stat || millis()-lastBrakePressedTime<BRAKE_RELEASE_GRACE_TIME_MS;
+
+        stat = digitalRead(THROTTLE_CANCEL_PORT, THROTTLE_CANCEL_PIN);
+        if (stat) {
+            lastGasPressedTime = millis();
+        }
+        retropilotParams.OP_GAS_PRESSED = stat || millis()-lastGasPressedTime<GAS_RELEASE_GRACE_TIME_MS;
+
+        //retropilotParams.OP_GAS_PRESSED = false; // TODO: temporary as long as no throttle sensor is present
+
     }
     else {
         retropilotParams.OP_CLUTCH_PRESSED = false;
         retropilotParams.OP_BRAKE_PRESSED = false;
+        retropilotParams.OP_GAS_PRESSED = false;
     }
     
     // READING BUTTONS AND SWITCHES

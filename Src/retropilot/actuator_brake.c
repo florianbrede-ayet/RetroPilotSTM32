@@ -77,7 +77,7 @@ void abrake_stop() {
 }
 
 /**
- * This is called ~ 50/s (whenever a 0x200 can package is received) to startActuation (if stopped) and set a new setpoint.
+ * This is called >= 50/s  to startActuation (if stopped) and set a new setpoint.
  * The function will check if our current cycle is in the same direction as the new cycle. 
  * If so, just update the endpoints to make sure no new ramp up/down phase begins.
  * */
@@ -86,7 +86,7 @@ void abrake_start(int mTargetPosition) {
   if (mTargetPosition>BRAKE_ACTUATOR_MAX_POT) mTargetPosition=BRAKE_ACTUATOR_MAX_POT;
 
   // within BRAKE_ACTUATOR_ALLOWED_PERM_ERROR, stop this actuation sequence
-  if (!retropilotParams.ALLOW_BRAKE || ABS(ab_actuator_poti_position - mTargetPosition) < BRAKE_ACTUATOR_ALLOWED_PERM_ERROR) {
+  if (ABS(ab_actuator_poti_position - mTargetPosition) < BRAKE_ACTUATOR_ALLOWED_PERM_ERROR) {
     ab_actuator_target_position=mTargetPosition; 
     return abrake_stop();
   }
@@ -118,7 +118,7 @@ void abrake_update() {
 
   if (ab_actuator_direction==0) return;
 
-  if (ABS(ab_actuator_poti_position - ab_actuator_target_position) < BRAKE_ACTUATOR_ALLOWED_PERM_ERROR)
+  if (!retropilotParams.ALLOW_BRAKE || ABS(ab_actuator_poti_position - ab_actuator_target_position) < BRAKE_ACTUATOR_ALLOWED_PERM_ERROR)
       return abrake_stop();
 
 

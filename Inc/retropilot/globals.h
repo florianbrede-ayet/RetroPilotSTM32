@@ -226,15 +226,17 @@ PIN_OLED_SDA 	J_I2C_DISP 4	PB7
 
 
 // SAFETY
-#define CLUTCH_RELEASE_GRACE_TIME_MS 500 // amount of ms to delay before pulling throttle after shifting for example
-#define BRAKE_RELEASE_GRACE_TIME_MS 250 //  amount of ms to delay before pulling throttle after braking either automatically or manually
+#define CLUTCH_RELEASE_GRACE_TIME_MS 500    // amount of ms to delay before pulling throttle after shifting for example
+#define BRAKE_RELEASE_GRACE_TIME_MS  50     // amount of ms to delay before pulling throttle after braking either automatically or manually
+#define GAS_RELEASE_GRACE_TIME_MS  50       // amount of ms to delay before allowing auto-brake after manually pressing the gas/throttle pedal
 
 
 // OPENPILOT / TOYOTA MESSAGE CONFIG 
 #define OP_MAX_GAS_COMMAND 2000.0f //the max value which comes from OP on CAN ID 0x200 (actually 2074, it's being clipped)
 #define OP_MIN_GAS_COMMAND 0.0f //the min value which comes from OP on CAN ID 0x200
 
-#define OP_MIN_BRAKE_COMMAND 0.0f   // this is no braking (extracted from 0x343 GAS_CMD message in m/s)
+#define OP_IGNORE_BRAKE_COMMAND_BELOW 0.5f // values below this are not treated as brake cmd (for example because engine braking is sufficient) (extracted from 0x343 GAS_CMD message in m/s)
+#define OP_MIN_BRAKE_COMMAND 0.5f   // this is no braking (extracted from 0x343 GAS_CMD message in m/s)
 #define OP_MAX_BRAKE_COMMAND 2.0f // this is full braking (extracted from 0x343 GAS_CMD message in m/s)
 
 

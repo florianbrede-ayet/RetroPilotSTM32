@@ -332,13 +332,20 @@ void cm_loop_recv() {
           cm_last_recv_panda_safety=millis();
 
           float BRAKE_CMD    = -canhelper_parse_be_float_signed(rxMsg.buf, 0, 0.001f, 7, 16);        
-          if (BRAKE_CMD > OP_MIN_BRAKE_COMMAND) {
-            BRAKE_CMD = (BRAKE_CMD>OP_MAX_BRAKE_COMMAND ? OP_MAX_BRAKE_COMMAND : BRAKE_CMD);
+          
+          if (BRAKE_CMD<OP_IGNORE_BRAKE_COMMAND_BELOW) {
+            retropilotParams.BRAKE_CMD_PERCENT = 0;  
           }
-          else 
-            BRAKE_CMD = OP_MIN_BRAKE_COMMAND;
+          else  {
+            if (BRAKE_CMD > OP_MIN_BRAKE_COMMAND) {
+              BRAKE_CMD = (BRAKE_CMD>OP_MAX_BRAKE_COMMAND ? OP_MAX_BRAKE_COMMAND : BRAKE_CMD);
+            }
+            else 
+              BRAKE_CMD = OP_MIN_BRAKE_COMMAND;
 
-          retropilotParams.BRAKE_CMD_PERCENT = ((100.0f/(OP_MAX_BRAKE_COMMAND - OP_MIN_BRAKE_COMMAND)) * (BRAKE_CMD - OP_MIN_BRAKE_COMMAND));
+            retropilotParams.BRAKE_CMD_PERCENT = ((100.0f/(OP_MAX_BRAKE_COMMAND - OP_MIN_BRAKE_COMMAND)) * (BRAKE_CMD - OP_MIN_BRAKE_COMMAND));
+          }
+          
         }
         break;
       }
