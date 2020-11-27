@@ -33,6 +33,8 @@
 #include "retropilot/eps_torque.h"
 #elif EPS_TYPE == EPS_TYPE_POSITION
 #include "retropilot/eps_position.h"
+#elif EPS_TYPE == EPS_TYPE_STOCK
+#include "retropilot/eps_stock.h"
 #endif
 #include "core.h"
 

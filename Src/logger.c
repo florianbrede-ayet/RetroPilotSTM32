@@ -36,6 +36,15 @@ void logger( const char* fmt, ... )
   serial_debug_puts(logbuffer);
 }
 
+void logger_raw( const char* fmt, ... )
+{
+  va_list arglist;
+  va_start( arglist, fmt );
+  vsnprintf(logbuffer, sizeof(logbuffer), fmt, arglist);
+  va_end( arglist );
+  serial_debug_puts(logbuffer);
+}
+
 
 void logger_e( const char* fmt, ... )
 {

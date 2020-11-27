@@ -34,6 +34,7 @@
 #include "uart.h"
 #include "logger.h"
 
+#if EPS_TYPE==EPS_TYPE_TORQUE
 
 #if DEBUG_SIMULATE_STEERING_ANGLE_SENSOR
 extern unsigned long cm_last_recv_steer_angle; // from can_manager, must be updated here if we enable simulated steering angle sensor
@@ -480,3 +481,5 @@ void eps_loop()
     eps_send();
     
 }
+
+#endif

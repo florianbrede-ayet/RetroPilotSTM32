@@ -39,6 +39,8 @@
 #include "retropilot/eps_torque.h"
 #elif EPS_TYPE == EPS_TYPE_POSITION
 #include "retropilot/eps_position.h"
+#elif EPS_TYPE == EPS_TYPE_STOCK
+#include "retropilot/eps_stock.h"
 #endif
 
 // DISPLAY / STATISTICS related variables
@@ -115,7 +117,11 @@ void debug_state() {
     adcRead(BRAKE_ACTUATOR_POTI_PIN),
     adcRead(THROTTLE_ACTUATOR_POTI_PIN),
     (int)(retropilotParams.currentSteeringAngle*100),
+    #if EPS_TYPE == EPS_TYPE_TORQUE
     (int)(eps_current_stepper_angle/EPS_GEARING*100),
+    #else
+    0,    
+    #endif
     retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG
     );
 
@@ -167,8 +173,10 @@ void retropilot_loop_safety() {
     retropilotParams.OP_ERROR_LKAS=true;
   else if (!retropilotParams.DEBUGMODE && millis()-cm_last_recv_module_eps > 100) 
     retropilotParams.OP_ERROR_LKAS=true;
+  #if EPS_TYPE!=EPS_TYPE_STOCK
   else if (!retropilotParams.DEBUGMODE && millis()-cm_last_recv_steer_cmd > 100) 
     retropilotParams.OP_ERROR_LKAS=true;
+  #endif
   else
     retropilotParams.OP_ERROR_LKAS=false;
   #endif

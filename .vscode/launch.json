@@ -13,6 +13,7 @@
             "request": "launch",
             "name": "PIO Debug",
             "executable": "/home/daywalker/AtomWorkspace/RetroPilotSTM32/.pio/build/retropilot_stm32f405/firmware.elf",
+            "projectEnvName": "retropilot_stm32f405",
             "toolchainBinDir": "/home/daywalker/.platformio/packages/toolchain-gccarmnoneeabi@1.70201.0/bin",
             "svdPath": "/home/daywalker/.platformio/platforms/ststm32/misc/svd/STM32F40x.svd",
             "preLaunchTask": {
@@ -26,6 +27,7 @@
             "request": "launch",
             "name": "PIO Debug (skip Pre-Debug)",
             "executable": "/home/daywalker/AtomWorkspace/RetroPilotSTM32/.pio/build/retropilot_stm32f405/firmware.elf",
+            "projectEnvName": "retropilot_stm32f405",
             "toolchainBinDir": "/home/daywalker/.platformio/packages/toolchain-gccarmnoneeabi@1.70201.0/bin",
             "svdPath": "/home/daywalker/.platformio/platforms/ststm32/misc/svd/STM32F40x.svd",
             "internalConsoleOptions": "openOnSessionStart"

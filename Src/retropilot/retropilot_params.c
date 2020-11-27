@@ -23,6 +23,7 @@ RetropilotParams retropilotParams = {
 
     .vssAvgSpeedKMH = 0,   // current v_ego, calculated by the vss sensor and streamed through WHEELSPEEDS by the vss module
     .currentSteeringAngle = 0, // current steering angle, taken from the steering angle sensor messages
+    .currentSteeringRate = 0,  // current steering rate, taken from steering angle sensor messages or calculated at 10Hz
 
     // these are extracted from STEERING_LKA openpilot is streaming
     .OP_STEER_REQUEST    = 0,

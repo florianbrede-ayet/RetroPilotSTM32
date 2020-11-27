@@ -83,7 +83,7 @@
                 ]
             },
             "defines": [
-                "PLATFORMIO=50001",
+                "PLATFORMIO=50003",
                 "STM32F405xx",
                 "STM32F4xx",
                 "HSE_VALUE=8000000",
@@ -91,7 +91,7 @@
                 "F_CPU=100000000L",
                 ""
             ],
-            "intelliSenseMode": "clang-x64",
+            "intelliSenseMode": "gcc-x64",
             "cppStandard": "c++11",
             "compilerPath": "/home/daywalker/.platformio/packages/toolchain-gccarmnoneeabi@1.70201.0/bin/arm-none-eabi-gcc",
             "compilerArgs": [

@@ -9,10 +9,12 @@
 #define OLED_REFRESH_MS 100
 
 
-#define DEBUG_SIMULATE_STEERING_ANGLE_SENSOR    1   // DEBUG ONLY!  if set to 1, the encoder will replace a physical TSS steering angle sensor (zero sensor by pressing +/- on the keypad while disengaged - required before able to engage)
+#define DEBUG_SIMULATE_STEERING_ANGLE_SENSOR    0   // DEBUG ONLY!  if set to 1, the encoder will replace a physical TSS steering angle sensor (zero sensor by pressing +/- on the keypad while disengaged - required before able to engage)
 
 #define CAR_WITHOUT_ABS_BRAKES    1    // set to 1 if the car does not have antilock-braking. if enabled, braking will be interrupted within ~100ms (depending on VSS sensor) if a wheel-lock is detected
 
+#define STEER_ANGLE_SENSOR_BOSCH_2007 1
+#define STEER_ANGLE_SENSOR_COROLLA 0
 
 // define the type of eps controlling we want (torque controlled, position controlled or no eps)
 #define EPS_TYPE_NONE             0
@@ -20,7 +22,7 @@
 #define EPS_TYPE_POSITION         2
 #define EPS_TYPE_STOCK            3 // stock means an actual toyota eps is installed
 
-#define EPS_TYPE    EPS_TYPE_TORQUE
+#define EPS_TYPE    EPS_TYPE_STOCK
 //#define EPS_TYPE    EPS_TYPE_NONE
 
 

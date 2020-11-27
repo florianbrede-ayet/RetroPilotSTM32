@@ -29,6 +29,7 @@
 #include "can_handler.h"
 #include "retropilot/globals.h"
 #include "retropilot/retropilot_params.h"
+#include "logger.h"
 
 unsigned long cm_last_send_100hz=0L;
 unsigned long cm_last_send_50hz=0L;
@@ -65,6 +66,9 @@ unsigned long cm_last_recv_pedal_safety=0L;
 
 unsigned long cm_last_recv_module_error_flag = 0; // updated whenever an ecu sends a heartbeat with a fault state
 
+
+float cm_old_steer_angle = -1000;
+uint8_t cm_cnt_steer_angle = 0;
 
 
 
@@ -128,6 +132,7 @@ void cm_send_fake_toyota_can_messages(bool trigger100Hz, bool trigger50Hz, bool 
     canhelper_put_toyota_checksum(buf, 0x614, 7);
     can_send_message(0, 0x614, buf);
     cm_tx_cnt++;
+
     #endif
 }
 
@@ -137,7 +142,44 @@ void cm_send_fake_toyota_can_messages(bool trigger100Hz, bool trigger50Hz, bool 
 
 void cm_send_standard_toyota_can_messages(bool trigger100Hz, bool trigger50Hz, bool trigger33Hz) {
     
+
+    if (trigger100Hz) {
+      #if MODULE_INPUTS && STEER_ANGLE_SENSOR_BOSCH_2007
+      if (millis()>1000 && millis()-cm_last_recv_steer_angle<50) { // in this case, last recv is updated whenever we receive data from the bosch SAS (received at 100Hz)
+        uint8_t buf[8];    
+        canhelper_reset_buffer(buf);
+        // convert currentSteeringAngle to 1.5 deg basis + fraction -0.7 - +0.7
+        float ang = retropilotParams.currentSteeringAngle;
+        float fraction = (float)(((int)(ang*10))%15)/10.0f;
+        if (fraction > 0.7) {ang++; fraction=fraction-1.5f;}
+        else if (fraction < -0.7) {ang--; fraction=1.5f+fraction;}
+        ang = ((int)(ang/1.5f))*1.5f;
+        
+        canhelper_put_be_float_signed(buf, ang, 0, 1.5f, 3, 12);
+        canhelper_put_be_float_signed(buf, fraction, 0, 0.1f, 39, 4);
+        canhelper_put_be_int_signed(buf, retropilotParams.currentSteeringRate, 0, 1, 35, 12);
+        buf[3]=0x01;
+        canhelper_put_toyota_checksum(buf, 0x25, 7);
+
+        can_send_message(0, 0x25, buf);
+        cm_tx_cnt++;
+      }
+      #endif
+    }
+
+    if (trigger33Hz) {
+      // this is "auto high beam" and is used by OP as generic toggle, in our case for "LKAS ON/OFF"
+      #if MODULE_INPUTS
+      uint8_t buf[8];    
+      canhelper_reset_buffer(buf);
+      canhelper_put_be_int(buf, (retropilotParams.ALLOW_STEERING) ? 1 : 0, 0, 1, 37, 1);
+      can_send_message(0, 0x622, buf);
+      cm_tx_cnt++;
+      #endif
+    }
+
     if (!trigger50Hz) return;
+
 
     uint8_t buf[8];    
     // SENDING_CAN_MESSAGES
@@ -172,11 +214,8 @@ void cm_send_standard_toyota_can_messages(bool trigger100Hz, bool trigger50Hz, b
     buf[6] = (wheelspeed >> 8) & 0xFF;
     buf[7] = (wheelspeed >> 0) & 0xFF;
     can_send_message(0, 0xaa, buf);
-
-    
     cm_tx_cnt++;
     #endif
-
 
     // we send these messages either if we have the EPS module and don't use the stock EPS or if we entirely disabled EPS
     #if (MODULE_EPS || (MODULE_INPUTS && EPS_TYPE==EPS_TYPE_NONE)) && EPS_TYPE != EPS_TYPE_STOCK
@@ -273,7 +312,7 @@ void cm_send_retropilot_can_messages(bool trigger100Hz, bool trigger50Hz, bool t
     		buf[0] |= 1 << 3; // brake heartbeat flag
     		buf[1] |= retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR ? 0 : 1 << 3; // brake status flag (1 == working)
     #endif
-    #if MODULE_EPS
+    #if MODULE_EPS && (EPS_TYPE==EPS_TYPE_TORQUE || EPS_TYPE==EPS_TYPE_POSITION)
         cm_last_recv_module_eps=millis();
     		buf[0] |= 1 << 4; // eps heartbeat flag
     		buf[1] |= retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR ? 0 : 1 << 4;  // eps status flag (1 == working)
@@ -449,6 +488,8 @@ void cm_loop_recv() {
         break;
       }
 
+  
+      #if STEER_ANGLE_SENSOR_COROLLA
       case 0x25: { // STEER_ANGLE_SENSOR (coming from the TSS steering angle sensor)
         cm_last_recv_steer_angle = millis();
         float steerAngle    = canhelper_parse_be_float_signed(rxMsg.buf, 0, 1.5f, 3, 12);
@@ -457,6 +498,26 @@ void cm_loop_recv() {
         //logger("steering angle: (base: %d, fraction: %d) == %d mdeg\n", (int)steerAngle, (int)(steerFraction*1000), (int)(retropilotParams.currentSteeringAngle*1000));
         break;
       }
+      #endif
+
+      #if STEER_ANGLE_SENSOR_BOSCH_2007
+      case 0x80: { // STEER_ANGLE_SENSOR
+        cm_last_recv_steer_angle = millis();
+        cm_cnt_steer_angle++;
+        float steerAngle = canhelper_parse_le_float_signed(rxMsg.buf, 0, 0.1f, 0, 14);
+        retropilotParams.currentSteeringAngle = steerAngle;
+        if (cm_cnt_steer_angle>=5) {
+          if (cm_old_steer_angle>-1000) {
+            retropilotParams.currentSteeringRate=(steerAngle-cm_old_steer_angle)*(1000/10/cm_cnt_steer_angle);
+          }
+          cm_cnt_steer_angle=0;
+          cm_old_steer_angle = steerAngle;
+        }
+        //logger("steering angle: %d mdeg     steering rate: %d mdeg\n", (int)(retropilotParams.currentSteeringAngle*1000), (int)(retropilotParams.currentSteeringRate*1000));
+        break;
+      }
+      #endif
+
     } 
   }
 }

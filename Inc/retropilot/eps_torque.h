@@ -1,6 +1,7 @@
 /*
-  RetropilotVSS.cpp - Handling VSS sensor interrupts, calculating the current wheelspeed and storing it in RetropilotParams
-  
+  eps_torque.h - Controlling a closed loop stepper over USART3 (misfittech nano stepper with custom firmware).
+  Parses the torque commands from the standard toyota eps LKA_STEERING messages
+
   The MIT License (MIT)
 
   Copyright (c) 2020 Florian Brede

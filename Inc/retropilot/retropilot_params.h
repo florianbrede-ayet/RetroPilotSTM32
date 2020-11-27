@@ -26,6 +26,7 @@ typedef struct {
 
     float vssAvgSpeedKMH;   // current v_ego, calculated by the vss sensor and streamed through WHEELSPEEDS by the vss module
     float currentSteeringAngle; // current steering angle, taken from the steering angle sensor messages
+    float currentSteeringRate;  // current steering rate, taken from steering angle sensor messages or calculated at 10Hz
 
     // these are extracted from STEERING_LKA openpilot is streaming
     uint8_t OP_STEER_REQUEST;

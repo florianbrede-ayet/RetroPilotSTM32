@@ -57,6 +57,11 @@ uint32_t canhelper_parse_be_uint(uint8_t *buffer, float paramOffset, float param
     return returnValue;
 }
 
+
+
+
+
+
 int32_t canhelper_parse_be_int_signed(uint8_t *buffer, float paramOffset, float paramScale, uint8_t mostSignifcantBit, uint8_t size) {
     int32_t rawValue = canhelper_parse_be_uint(buffer, 0, 1, mostSignifcantBit, size);
     int32_t max_value = 1<<(size-1);
@@ -98,6 +103,77 @@ uint8_t canhelper_parse_be_byte(uint8_t *buffer, float paramOffset, float paramS
     uint8_t value = rawValue*paramScale+paramOffset;
     return value;
 }
+
+
+
+uint32_t canhelper_parse_le_uint(uint8_t *buffer, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
+    uint32_t returnValue=0;
+
+    if (size>32) {
+        //Serial.print("CANHelper Error: size is "); Serial.print(size); Serial.println(" but maximum supported size is 32 bit!");
+        return 0;
+    }
+    unsigned char i;
+
+    int16_t currentByte = (leastSignifcantBit)/8;
+    int16_t currentBit = (leastSignifcantBit-currentByte*8);
+
+    unsigned char bit;
+    for (i = 0; i<size; i++) {
+        bit = buffer[currentByte] >> (currentBit) & 0b00000001;
+        returnValue |= bit << i;
+        currentBit++;
+        if (currentBit>7) {
+            currentBit=0;
+            currentByte++;
+        }
+    }
+    return returnValue;
+}
+
+
+int32_t canhelper_parse_le_int_signed(uint8_t *buffer, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
+    int32_t rawValue = canhelper_parse_le_uint(buffer, 0, 1, leastSignifcantBit, size);
+    int32_t max_value = 1<<(size-1);
+    int32_t value;
+    if (rawValue<max_value)
+        value = rawValue*paramScale+paramOffset;
+    else
+        value = (-max_value+(rawValue-max_value))*paramScale+paramOffset;
+    return value;
+}
+
+
+int32_t canhelper_parse_le_int(uint8_t *buffer, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
+    uint32_t rawValue = canhelper_parse_le_uint(buffer, 0, 1, leastSignifcantBit, size);
+    int32_t value = rawValue*paramScale+paramOffset;
+    return value;
+}
+
+float canhelper_parse_le_float(uint8_t *buffer, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
+    uint32_t rawValue = canhelper_parse_le_uint(buffer, 0, 1, leastSignifcantBit, size);
+    float value = rawValue*paramScale+paramOffset;
+    return value;
+}
+
+
+float canhelper_parse_le_float_signed(uint8_t *buffer, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
+    int32_t rawValue = canhelper_parse_le_uint(buffer, 0, 1, leastSignifcantBit, size);
+    int32_t max_value = 1<<(size-1);
+    float value;
+    if (rawValue<max_value)
+        value = rawValue*paramScale+paramOffset;
+    else
+        value = (-max_value+(rawValue-max_value))*paramScale+paramOffset;
+    return value;
+}
+
+uint8_t canhelper_parse_le_byte(uint8_t *buffer, float paramOffset, float paramScale, uint8_t leastSignifcantBit, uint8_t size) {
+    uint32_t rawValue = canhelper_parse_le_uint(buffer, 0, 1, leastSignifcantBit, size);
+    uint8_t value = rawValue*paramScale+paramOffset;
+    return value;
+}
+
 
 void canhelper_put_be_internal(uint8_t *buffer, uint32_t value, uint8_t mostSignifcantBit, uint8_t size) {
     if (size>32) {
@@ -197,4 +273,18 @@ bool canhelper_verify_toyota_checksum(uint8_t *buffer, uint16_t canTx, uint8_t l
 
 void canhelper_reset_buffer(uint8_t *buffer) {
     buffer[0]=buffer[1]=buffer[2]=buffer[3]=buffer[4]=buffer[5]=buffer[6]=buffer[7]=0;
+}
+
+void canhelper_print_bitmask(uint8_t *buffer) {
+    int16_t i, by, bi;
+    for (by=7; by>=0; by--) {
+        logger_raw("\n");
+        for (bi = 0; bi<8; bi++) {
+            i = by*8+bi;
+            uint8_t bit = (buffer[7 - ((i+0) / 8)] >> (7 - ((i+0)%8))) & 0b00000001;
+            logger_raw("%d (%d|%d)   ", bit, 7 - ((i+0) / 8), (7 - ((i+0)%8)));
+            
+        }
+    }
+    logger_raw("\n");
 }

@@ -6,5 +6,6 @@
 
 void logger( const char* fmt, ... );
 void logger_e( const char* fmt, ... );
+void logger_raw( const char* fmt, ... );
 
 #endif
