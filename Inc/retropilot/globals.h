@@ -22,8 +22,8 @@
 #define EPS_TYPE_POSITION         2
 #define EPS_TYPE_STOCK            3 // stock means an actual toyota eps is installed
 
-#define EPS_TYPE    EPS_TYPE_STOCK
-//#define EPS_TYPE    EPS_TYPE_NONE
+//#define EPS_TYPE    EPS_TYPE_STOCK
+#define EPS_TYPE    EPS_TYPE_NONE
 
 
 

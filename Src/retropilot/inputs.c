@@ -184,9 +184,12 @@ void inputs_loop() {
                 athrottle_debug_down();
             } else if (debug_actuator==1) {
                 abrake_debug_down();
-            } else if (debug_actuator==2) {
+            } 
+            #if MODULE_EPS
+            else if (debug_actuator==2) {
                 eps_debug_torque_left();
             }
+            #endif
         }
     }
 
@@ -204,9 +207,12 @@ void inputs_loop() {
                 athrottle_debug_up();
             } else if (debug_actuator==1) {
                 abrake_debug_up();
-            } else if (debug_actuator==2) {
+            }
+            #if MODULE_EPS
+            else if (debug_actuator==2) {
                 eps_debug_torque_right();
             }
+            #endif
         }
     }
 

@@ -41,6 +41,8 @@
 #include "retropilot/eps_position.h"
 #elif EPS_TYPE == EPS_TYPE_STOCK
 #include "retropilot/eps_stock.h"
+#elif EPS_TYPE == EPS_TYPE_NONE
+#include "retropilot/eps_none.h"
 #endif
 
 // DISPLAY / STATISTICS related variables
@@ -109,8 +111,8 @@ void debug_state() {
   last_debug_state = millis();
 
 
-  logger("STATE  |  ERROR: %d   ON: %d   A_STEER: %d   A_BRAKE: %d   A_GAS: %d   TORQUE:   %d   BRAKE_PER: %d   GAS_PER: %d   BRAKE_POTI: %d   GAS_POTI: %d   STEER_ANG: %d   STEPPER: %d   EPS_TOYOTA_STATUS: %d\n",
-    retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR || retropilotParams.OP_FAULTY_ECU || retropilotParams.OP_ERROR_CAN ? 1 : 0,
+  logger("STATE  |  ERROR: %d,%d,%d   ON: %d   A_STEER: %d   A_BRAKE: %d   A_GAS: %d   TORQUE:   %d   BRAKE_PER: %d   GAS_PER: %d   BRAKE_POTI: %d   GAS_POTI: %d   STEER_ANG: %d   STEPPER: %d   EPS_TOYOTA_STAT: %d   LAST_RECV: %d %d %d %d %d %d %d \n",
+    retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR ? 1 : 0, retropilotParams.OP_FAULTY_ECU ? 1 : 0, retropilotParams.OP_ERROR_CAN ? 1 : 0,
     retropilotParams.OP_ON,
     retropilotParams.ALLOW_STEERING, retropilotParams.ALLOW_BRAKE, retropilotParams.ALLOW_STEERING,
     (int)retropilotParams.OP_COMMANDED_TORQUE, (int)retropilotParams.BRAKE_CMD_PERCENT, (int)retropilotParams.GAS_CMD_PERCENT,
@@ -122,7 +124,14 @@ void debug_state() {
     #else
     0,    
     #endif
-    retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG
+    retropilotParams.OP_EPS_TOYOTA_STAUS_FLAG,
+    (int)(millis()-cm_last_recv_pedal_safety),
+    (int)(millis()-cm_last_recv_panda_safety),
+    (int)(millis()-cm_last_recv),
+    (int)(millis()-cm_last_recv_module_inputs),
+    (int)(millis()-cm_last_recv_module_vss),
+    (int)(millis()-cm_last_recv_module_athrottle),
+    (int)(millis()-cm_last_recv_module_abrake)
     );
 
 }
@@ -168,7 +177,8 @@ void retropilot_loop_safety() {
                                       millis()-cm_last_recv_module_athrottle > 100 || 
                                       millis()-cm_last_recv_module_abrake > 100)
                                     ));
-  #if EPS_TYPE != EPS_NONE
+
+  #if EPS_TYPE != EPS_TYPE_NONE
   if (!retropilotParams.DEBUGMODE && millis()-cm_last_recv_steer_angle > 50) 
     retropilotParams.OP_ERROR_LKAS=true;
   else if (!retropilotParams.DEBUGMODE && millis()-cm_last_recv_module_eps > 100) 
@@ -178,6 +188,8 @@ void retropilot_loop_safety() {
     retropilotParams.OP_ERROR_LKAS=true;
   #endif
   else
+    retropilotParams.OP_ERROR_LKAS=false;
+  #else
     retropilotParams.OP_ERROR_LKAS=false;
   #endif
 

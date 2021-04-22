@@ -221,7 +221,7 @@ void cm_send_standard_toyota_can_messages(bool trigger100Hz, bool trigger50Hz, b
     #if (MODULE_EPS || (MODULE_INPUTS && EPS_TYPE==EPS_TYPE_NONE)) && EPS_TYPE != EPS_TYPE_STOCK
     //0x262 EPS_STATUS
     canhelper_reset_buffer(buf);
-    #if EPS_TYPE_NONE
+    #if EPS_TYPE==EPS_TYPE_NONE
     buf[3] = 0x3;
     buf[4] = 0x6c;
     #else
