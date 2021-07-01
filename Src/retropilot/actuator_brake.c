@@ -156,12 +156,12 @@ void abrake_update() {
 
 void abrake_debug_up() {
   if (retropilotParams.DEBUGMODE)
-    abrake_start(ab_actuator_poti_position+250);
+    abrake_start(ab_actuator_target_position+250);
 }
 
 void abrake_debug_down() {
   if (retropilotParams.DEBUGMODE)
-    abrake_start(ab_actuator_poti_position-250);
+    abrake_start(ab_actuator_target_position-250);
 }
 
 /* called at > 1kHz */

@@ -201,6 +201,12 @@ void retropilot_loop_safety() {
   retropilotParams.ALLOW_BRAKE    = retropilotParams.OP_ON && !retropilotParams.OP_WHEELLOCK_DETECTED &&!retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR && !retropilotParams.OP_FAULTY_ECU && !retropilotParams.OP_ERROR_CAN && !retropilotParams.OP_CLUTCH_PRESSED && !retropilotParams.OP_GAS_PRESSED && retropilotParams.BRAKE_CMD_PERCENT>0;
   retropilotParams.ALLOW_STEERING = retropilotParams.OP_ON && !retropilotParams.OP_ERROR_LKAS && !retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR && !retropilotParams.OP_FAULTY_ECU && !retropilotParams.OP_ERROR_CAN && retropilotParams.OP_LKAS_ENABLED;
     
+  if (retropilotParams.DEBUGMODE) {
+    retropilotParams.ALLOW_THROTTLE = true;
+    retropilotParams.ALLOW_BRAKE = true;
+    retropilotParams.ALLOW_STEERING = true;
+  }
+
   // whenever there is any actual error, make sure to send OP_ON=false on the canbus so openpilot knows it's not supposed to try engaging
   if (retropilotParams.UNRECOVERABLE_CONFIGURATION_ERROR || retropilotParams.OP_FAULTY_ECU || retropilotParams.OP_ERROR_CAN) {   
     retropilotParams.OP_ON=false;
