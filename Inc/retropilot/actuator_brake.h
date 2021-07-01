@@ -29,10 +29,10 @@
 
 #include "../core.h"
 
-// NOTE: THIS IS THE CONFIGURATION FOR A BMW/VDO "8 369 027" / "408.201/013/001" ACTUATOR with 30mm actuation distance
+// NOTE: THIS IS THE CONFIGURATION FOR A VDO TEMPOSTAT
 #define BRAKE_ACTUATOR_ALLOWED_PERM_ERROR 25 //will allow a difference between targetPressure and currentPressure, otherwise the actuator permanently jerks around
-#define BRAKE_ACTUATOR_MIN_POT 1000 //measured at actuators lowest position (the initial pulling of the brake pedal ~1000ohms only activates the braking light switch and has no real effect)
-#define BRAKE_ACTUATOR_MAX_POT 2600 //measured at actuators highest position (ot the maximum actuation length we want to allow)
+#define BRAKE_ACTUATOR_MIN_POT 20 //measured at actuators lowest position (the initial pulling of the brake pedal ~1000ohms only activates the braking light switch and has no real effect)
+#define BRAKE_ACTUATOR_MAX_POT 2500 //measured at actuators highest position (ot the maximum actuation length we want to allow)
 #define BRAKE_ACTUATOR_POTI_REFERENCE_RESISTOR 1000 // we measure the resistance of the potentiometer - this is the reference resistor used to cover the ~2.4k ohms potentiometer range
 
 #define BRAKE_ACTUATOR_RAMP_UP_MS -1 // the "pull" time for which duty cycling is active (-1 disables ramping)
