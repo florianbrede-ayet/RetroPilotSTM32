@@ -103,11 +103,12 @@ void inputs_loop() {
         }
         retropilotParams.OP_BRAKE_PRESSED = stat || millis()-lastBrakePressedTime<BRAKE_RELEASE_GRACE_TIME_MS;
 
+        // ATTENTION: GAS / THROTTLE is reversed: hall magnetic signal == gas pressed - because there is no other good way to install the magnet
         stat = digitalRead(THROTTLE_CANCEL_PORT, THROTTLE_CANCEL_PIN);
-        if (stat) {
+        if (!stat) {
             lastGasPressedTime = millis();
         }
-        retropilotParams.OP_GAS_PRESSED = stat || millis()-lastGasPressedTime<GAS_RELEASE_GRACE_TIME_MS;
+        retropilotParams.OP_GAS_PRESSED = !stat || millis()-lastGasPressedTime<GAS_RELEASE_GRACE_TIME_MS;
 
         //retropilotParams.OP_GAS_PRESSED = false; // TODO: temporary as long as no throttle sensor is present
 
