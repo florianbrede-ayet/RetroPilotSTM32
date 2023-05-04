@@ -89,16 +89,16 @@ J_CAN_1
 
 +12V				J_CAN_1 1	+12V
 GND					J_CAN_1 2	GND
-CAN1 L 				J_CAN_1 3	TJA1040-1 CAN L 	--> used to connect angle sensor, steering mcu and RADAR 3
-CAN1 H 				J_CAN_1 4	TJA1040-1 CAN H		--> used to connect angle sensor, steering mcu and RADAR 2
+CAN1 L 				J_CAN_1 3	TJA1040-1 CAN L 	--> used to connect angle sensor, steering mcu and RADAR 3 (white) + RADAR 5 (green)
+CAN1 H 				J_CAN_1 4	TJA1040-1 CAN H		--> used to connect angle sensor, steering mcu and RADAR 2 (black) + RADAR 6 (purple)
 
 
 J_CAN_2
 
 +12V				J_CAN_2 CAN2 1	+12V
 GND					J_CAN_2 CAN2 2	GND
-CAN2 L 				J_CAN_2	TJA1040-2 CAN L		--> RADAR 11
-CAN2 H 				J_CAN_2	TJA1040-2 CAN H		--> RADAR 6
+CAN2 L 				J_CAN_2	TJA1040-2 CAN L
+CAN2 H 				J_CAN_2	TJA1040-2 CAN H
 
 
 L298-1
